@@ -55,7 +55,7 @@ li{margin:3px 0}ul{padding-left:20px;margin:4px 0}
 <div class="eta"><span>Tahmini varış</span><b id="eta">--:--</b><span id="rem"></span></div>
 <div class="st"><div><b id="sp">0</b><span>km/sa şimdi</span></div><div><b id="av">0</b><span>km/sa ortalama</span></div><div><b id="mx">0</b><span>km/sa en yüksek</span></div></div>
 <div class="card" id="bc"><div id="bt1" class="am"></div><div id="bt2" class="mt"></div></div>
-<div class="card"><div class="mt">Şu an</div><div id="lc" style="font-size:20px;font-weight:700">Konum bekleniyor…</div></div>
+<div class="card"><div class="mt">Şu an</div><div id="lc" style="font-size:20px;font-weight:700">Konum bekleniyor…</div><div id="np" class="am" style="margin-top:6px;font-weight:600"></div></div>
 <div class="card" id="ad" hidden></div>
 <div class="bt"><button id="bk" class="big" style="margin:0">Mola başladı</button></div>
 <div class="bt"><button id="pp">Molayı 15 dk ertele</button><button id="pv" hidden></button></div>
@@ -120,12 +120,46 @@ function watch(){
 }
 async function geo(la,lo){
   const k=la.toFixed(2)+','+lo.toFixed(2);if(cache[k])return cache[k];
-  const d=await j(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${la}&longitude=${lo}&localityLanguage=tr`);
-  return cache[k]={il:(d.principalSubdivision||'').replace(/ (Province|İli)$/,''),ilce:d.city||d.locality||''};
+  const cl=x=>(x||'').replace(/\s*(Province|İli|İlçesi|Ilçesi)$/i,'').trim();
+  let il='',ilce='';
+  try{
+    const d=await j(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${la}&longitude=${lo}&localityLanguage=tr`);
+    const ad=(d.localityInfo&&d.localityInfo.administrative)||[];
+    const lv=n=>(ad.find(x=>x.adminLevel===n)||{}).name;
+    il=cl(lv(4)||d.principalSubdivision);ilce=cl(lv(6));
+  }catch{}
+  if(!ilce||ilce==il){
+    try{
+      const a=(await j(`https://nominatim.openstreetmap.org/reverse?format=json&zoom=12&accept-language=tr&lat=${la}&lon=${lo}`)).address||{};
+      il=il||cl(a.province||a.state);ilce=cl(a.county||a.town||a.city_district||a.municipality||'');
+    }catch{}
+  }
+  if(ilce==il)ilce='';
+  return cache[k]={il,ilce};
+}
+const pl=g=>g.ilce&&g.ilce!=g.il?g.ilce+', '+g.il:(g.il||'');
+let npT=0;
+async function tmz(la,lo,at){
+  const ds=`${at.getDate()}-${at.getMonth()+1}-${at.getFullYear()}`,k='p'+ds+Math.round(la*4)+'_'+Math.round(lo*4);
+  if(!cache[k])cache[k]=(await j(`https://api.aladhan.com/v1/timings/${ds}?latitude=${Math.round(la*4)/4}&longitude=${Math.round(lo*4)/4}&method=13`)).data.timings;
+  return cache[k];
+}
+async function nextP(){
+  if(!pos||Date.now()-npT<6e4)return;npT=Date.now();
+  try{
+    const n=new Date(),V=[['Fajr','İmsak'],['Sunrise','Güneş'],['Dhuhr','Öğle'],['Asr','İkindi'],['Maghrib','Akşam'],['Isha','Yatsı']];
+    for(let day=0;day<2;day++){
+      const at=new Date(n.getTime()+day*864e5),tm=await tmz(pos.lat,pos.lon,at);
+      for(const[k,nm]of V){
+        const[h,m]=tm[k].slice(0,5).split(':'),T=new Date(at);T.setHours(+h,+m,0,0);
+        if(T>n){$('np').textContent=`Sıradaki vakit: ${nm} ${tm[k].slice(0,5)} (${dur(T-n)} sonra)`;return}
+      }
+    }
+  }catch{npT=0}
 }
 async function loc(){
   try{const g=await geo(pos.lat,pos.lon);if(!g.il)return;
-    if(!st.cur||st.cur.il!=g.il||st.cur.ilce!=g.ilce){const first=!st.cur;st.cur=g;st.vis.push({il:g.il,ilce:g.ilce,t:Date.now()});if(!first)notify('Şimdi: '+(g.ilce?g.ilce+', ':'')+g.il)}
+    if(!st.cur||st.cur.il!=g.il||st.cur.ilce!=g.ilce){const first=!st.cur;st.cur=g;st.vis.push({il:g.il,ilce:g.ilce,t:Date.now()});if(!first)notify('Şimdi: '+pl(g))}
   }catch{}
 }
 function remMs(){
@@ -145,7 +179,7 @@ function tick(){
   $('sp').textContent=pos?Math.round(pos.sp):0;
   $('av').textContent=st.mov>6e4?Math.round(st.dist/(st.mov/36e5)):0;
   $('mx').textContent=Math.round(st.max);
-  if(st.cur)$('lc').textContent=(st.cur.ilce?st.cur.ilce+', ':'')+st.cur.il;
+  if(st.cur)$('lc').textContent=pl(st.cur);
   $('bc').classList.toggle('brk',!d);
   if(d){
     const due=cc-sb;
@@ -160,6 +194,7 @@ function tick(){
   }
   $('bk').textContent=d?'Mola başladı':'Yola devam';
   $('pp').hidden=!d;
+  nextP();
   if(d&&n-lastAdv>3e4&&pos){lastAdv=n;advise(r)}
   const A=$('ad');A.hidden=!(d&&adv);if(adv){A.textContent=adv.t}
   $('pv').hidden=!(d&&adv&&adv.p>0);if(adv&&adv.p>0)$('pv').textContent=`Molayı ${adv.p} dk ertele (namaz)`;
@@ -173,7 +208,7 @@ async function advise(r){
     ds=`${at.getDate()}-${at.getMonth()+1}-${at.getFullYear()}`,k='t'+ds+Math.round(la*2)+Math.round(lo*2);
     if(!cache[k])cache[k]=(await j(`https://api.aladhan.com/v1/timings/${ds}?latitude=${Math.round(la*2)/2}&longitude=${Math.round(lo*2)/2}&method=13`)).data.timings;
     const tm=cache[k];let g={il:'',ilce:''};try{g=await geo(Math.round(la*10)/10,Math.round(lo*10)/10)}catch{}
-    let t=`Sonraki mola yaklaşık ${hm(at)}, ${g.ilce||g.il||'yol üzeri'} civarında.`,p=0;
+    let t=`Sonraki mola yaklaşık ${hm(at)}, ${pl(g)||'yol üzeri'} civarında.`,p=0;
     for(const[kk,nm]of[['Fajr','Sabah'],['Dhuhr','Öğle'],['Asr','İkindi'],['Maghrib','Akşam'],['Isha','Yatsı']]){
       const[h,m]=tm[kk].slice(0,5).split(':'),T=new Date(at);T.setHours(+h,+m,0,0);const d=(T-at)/6e4;
       if(d<=0&&d>-90){t+=` ${nm} vakti girmiş olacak, molada namaz kılabilirsiniz.`;break}
@@ -184,7 +219,7 @@ async function advise(r){
 }
 $('bk').onclick=()=>{
   const n=Date.now();
-  if(st.ph=='d'){st.ph='b';bAl=false;st.brk={s:n,place:st.cur?(st.cur.ilce?st.cur.ilce+', ':'')+st.cur.il:'Bilinmiyor'}}
+  if(st.ph=='d'){st.ph='b';bAl=false;st.brk={s:n,place:st.cur?pl(st.cur):'Bilinmiyor'}}
   else{st.brks.push({s:st.brk.s,d:n-st.brk.s,place:st.brk.place});st.brk=null;st.ph='d';st.sb=0;st.pp=0;alerted=false;adv=null;lastAdv=0}
 };
 $('pp').onclick=()=>{st.pp+=9e5;alerted=false;lastAdv=0};
