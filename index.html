@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0e1b24">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Yol Arkadaşı">
+<title>Yol Arkadaşı</title>
+<style>
+:root{--bg:#0e1b24;--pn:#16293a;--ln:#2a4a62;--tx:#eef4f7;--mt:#8fa8b8;--sg:#0a7a52;--am:#f2a900}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,sans-serif;padding:max(12px,env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom));max-width:560px;margin-inline:auto}
+h1{font-size:22px;margin:6px 0 14px}h2{font-size:17px;margin:18px 0 6px}
+label{display:block;color:var(--mt);font-size:14px;margin:12px 0 4px}
+input{width:100%;background:var(--pn);border:1px solid var(--ln);color:var(--tx);border-radius:10px;padding:12px;font-size:16px}
+button{background:var(--pn);border:1px solid var(--ln);color:var(--tx);border-radius:10px;padding:12px 14px;font-size:16px}
+button:focus-visible,input:focus-visible{outline:2px solid var(--am)}
+.r{display:flex;gap:8px}.r input{flex:1}.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ls button{display:block;width:100%;text-align:left;margin-top:6px;font-size:14px}
+.card{background:var(--pn);border:1px solid var(--ln);border-radius:12px;padding:12px;margin-top:12px}
+.big{width:100%;margin-top:14px;background:var(--sg);border-color:var(--sg);font-weight:700;font-size:18px;padding:16px}
+.big:disabled{opacity:.4}
+.eta{background:var(--sg);border-radius:14px;padding:16px;text-align:center}
+.eta b{font-size:56px;display:block;line-height:1.1;font-variant-numeric:tabular-nums}
+.eta span{font-size:15px;opacity:.9}
+.st{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;text-align:center}
+.st div{background:var(--pn);border:1px solid var(--ln);border-radius:12px;padding:10px 4px}
+.st b{display:block;font-size:24px;font-variant-numeric:tabular-nums}.st span{font-size:12px;color:var(--mt)}
+.brk{border-color:var(--am)}.am{color:var(--am);font-weight:700}
+.bt{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}.bt button{flex:1}
+.mt{color:var(--mt);font-size:14px}
+#tz{position:fixed;left:14px;right:14px;top:max(10px,env(safe-area-inset-top));background:var(--am);color:#1a1200;border-radius:12px;padding:14px;font-weight:700;display:none;z-index:9}
+li{margin:3px 0}ul{padding-left:20px;margin:4px 0}
+</style></head><body>
+<div id="tz"></div>
+
+<main id="s">
+<h1>Yol Arkadaşı</h1>
+<label for="ia">Nereden</label>
+<div class="r"><input id="ia" placeholder="İl veya ilçe ara" enterkeyhint="search"><button id="ga" aria-label="Konumumu kullan">Konumum</button><button data-w="a">Ara</button></div><div class="ls" id="la"></div>
+<label for="ib">Nereye</label>
+<div class="r"><input id="ib" placeholder="İl veya ilçe ara" enterkeyhint="search"><button data-w="b">Ara</button></div><div class="ls" id="lb"></div>
+<div class="g2">
+<div><label for="iv">Mola aralığı (saat)</label><input id="iv" type="number" value="3" step="0.5" min="0.5"></div>
+<div><label for="bm">Mola süresi (dk)</label><input id="bm" type="number" value="20" min="1"></div>
+</div>
+<div class="card" id="pl">Başlangıç ve varış noktasını seçin.</div>
+<button class="big" id="go" disabled>Yolculuğu başlat</button>
+</main>
+
+<main id="r" hidden>
+<div class="eta"><span>Tahmini varış</span><b id="eta">--:--</b><span id="rem"></span></div>
+<div class="st"><div><b id="sp">0</b><span>km/sa şimdi</span></div><div><b id="av">0</b><span>km/sa ortalama</span></div><div><b id="mx">0</b><span>km/sa en yüksek</span></div></div>
+<div class="card" id="bc"><div id="bt1" class="am"></div><div id="bt2" class="mt"></div></div>
+<div class="card"><div class="mt">Şu an</div><div id="lc" style="font-size:20px;font-weight:700">Konum bekleniyor…</div></div>
+<div class="card" id="ad" hidden></div>
+<div class="bt"><button id="bk" class="big" style="margin:0">Mola başladı</button></div>
+<div class="bt"><button id="pp">Molayı 15 dk ertele</button><button id="pv" hidden></button></div>
+<div class="bt"><button id="fin">Yolculuğu bitir</button></div>
+<label class="mt" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="vo" checked style="width:auto"> Sesli bildirim</label>
+</main>
+
+<main id="f" hidden></main>
+
+<script>
+const $=i=>document.getElementById(i),RD=Math.PI/180;
+const hav=(a,b,c,d)=>{const x=Math.sin((c-a)*RD/2)**2+Math.cos(a*RD)*Math.cos(c*RD)*Math.sin((d-b)*RD/2)**2;return 12742*Math.asin(Math.sqrt(x))};
+const hm=t=>new Date(t).toLocaleTimeString('tr',{hour:'2-digit',minute:'2-digit'});
+const dur=ms=>{const m=Math.max(0,Math.round(ms/6e4));return m>=60?Math.floor(m/60)+' sa '+(m%60)+' dk':m+' dk'};
+const pts={a:null,b:null},cache={};
+let plan=null,st=null,pos=null,adv=null,lastGeo=0,lastAdv=0,alerted=false,bAl=false,ac=null;
+async function j(u){const r=await fetch(u);if(!r.ok)throw 0;return r.json()}
+
+/* ---- Kurulum ---- */
+async function srch(w){
+  const q=$('i'+w).value.trim(),L=$('l'+w);if(!q)return;L.textContent='Aranıyor…';
+  try{
+    const r=await j('https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=tr&accept-language=tr&q='+encodeURIComponent(q));
+    L.innerHTML='';
+    r.forEach(x=>{const b=document.createElement('button');b.textContent=x.display_name.split(',').slice(0,3).join(',');
+      b.onclick=()=>{pts[w]={lat:+x.lat,lon:+x.lon,name:x.display_name.split(',')[0]};$('i'+w).value=pts[w].name;L.innerHTML='';mk()};L.append(b)});
+    if(!r.length)L.textContent='Sonuç yok, farklı yazın.';
+  }catch{L.textContent='Arama başarısız. İnternet bağlantısını kontrol edin.'}
+}
+document.querySelectorAll('[data-w]').forEach(b=>b.onclick=()=>srch(b.dataset.w));
+['a','b'].forEach(w=>$('i'+w).addEventListener('keydown',e=>{if(e.key=='Enter')srch(w)}));
+$('ga').onclick=()=>navigator.geolocation.getCurrentPosition(p=>{pts.a={lat:p.coords.latitude,lon:p.coords.longitude,name:'Konumum'};$('ia').value='Konumum';mk()},()=>alert('Konum izni verin.'),{enableHighAccuracy:true});
+async function mk(){
+  const{a,b}=pts;if(!a||!b)return;$('pl').textContent='Rota hesaplanıyor…';
+  let km=hav(a.lat,a.lon,b.lat,b.lon)*1.3,sec=km/80*3600;
+  try{const r=await j(`https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=false`);km=r.routes[0].distance/1000;sec=r.routes[0].duration*1.1}catch{}
+  plan={km,sec};show();
+}
+function show(){
+  if(!plan)return;const iv=+$('iv').value*3600,bm=+$('bm').value*60,n=Math.max(0,Math.ceil(plan.sec/iv)-1),tot=plan.sec+n*bm;
+  $('pl').innerHTML=`<b>${Math.round(plan.km)} km</b>, sürüş tahmini ${dur(plan.sec*1e3)}<br>${n} mola x ${$('bm').value} dk<br>Toplam ${dur(tot*1e3)}. Şimdi çıkarsanız varış <b>${hm(Date.now()+tot*1e3)}</b>`;
+  $('go').disabled=false;
+}
+$('iv').oninput=$('bm').oninput=show;
+$('go').onclick=()=>{
+  st={a:pts.a,b:pts.b,km:plan.km,sec:plan.sec,iv:+$('iv').value*36e5,bm:+$('bm').value*6e4,t0:Date.now(),last:Date.now(),ph:'d',sb:0,pp:0,dist:0,mov:0,max:0,brks:[],vis:[],cur:null,brk:null,end:0};
+  beep();run();
+};
+
+/* ---- Takip ---- */
+function run(){$('s').hidden=$('f').hidden=true;$('r').hidden=false;lock();watch();setInterval(tick,1000)}
+async function lock(){try{if(navigator.wakeLock)await navigator.wakeLock.request('screen')}catch{}}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&st&&!st.end)lock()});
+function watch(){
+  navigator.geolocation.watchPosition(p=>{
+    const c=p.coords,t=Date.now(),acc=c.accuracy;let sp=c.speed!=null?c.speed*3.6:null;
+    if(pos&&acc<=60){const d=hav(pos.lat,pos.lon,c.latitude,c.longitude);if(sp==null)sp=d/((t-pos.t)/36e5);if(d>0.01&&st.ph=='d')st.dist+=d}
+    if(sp!=null&&acc<=30&&sp<250&&sp>st.max&&st.ph=='d')st.max=sp;
+    pos={lat:c.latitude,lon:c.longitude,t,sp:sp||0};
+    if(t-lastGeo>2e4){lastGeo=t;loc()}
+  },()=>{$('lc').textContent='Konum izni gerekli'},{enableHighAccuracy:true,maximumAge:2000});
+}
+async function geo(la,lo){
+  const k=la.toFixed(2)+','+lo.toFixed(2);if(cache[k])return cache[k];
+  const d=await j(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${la}&longitude=${lo}&localityLanguage=tr`);
+  return cache[k]={il:(d.principalSubdivision||'').replace(/ (Province|İli)$/,''),ilce:d.city||d.locality||''};
+}
+async function loc(){
+  try{const g=await geo(pos.lat,pos.lon);if(!g.il)return;
+    if(!st.cur||st.cur.il!=g.il||st.cur.ilce!=g.ilce){const first=!st.cur;st.cur=g;st.vis.push({il:g.il,ilce:g.ilce,t:Date.now()});if(!first)notify('Şimdi: '+(g.ilce?g.ilce+', ':'')+g.il)}
+  }catch{}
+}
+function remMs(){
+  const s0=hav(st.a.lat,st.a.lon,st.b.lat,st.b.lon),ratio=Math.max(1,st.km/Math.max(s0,1)),c=pos||st.a,
+  rk=hav(c.lat,c.lon,st.b.lat,st.b.lon)*ratio,pv=st.km/(st.sec/3600),ok=st.mov>6e5,av=ok?st.dist/(st.mov/36e5):pv,v=ok?(pv+av)/2:pv;
+  return{km:rk,drive:rk/v*36e5,av};
+}
+function tick(){
+  if(!st||st.end)return;
+  const n=Date.now(),dt=n-st.last;st.last=n;
+  if(st.ph=='d'){st.sb+=dt;if(pos&&pos.sp>3)st.mov+=dt}
+  const r=remMs(),d=st.ph=='d',cyc=st.iv+st.pp,sb=d?st.sb:0,cc=d?cyc:st.iv,
+  nb=Math.max(0,Math.ceil((sb+r.drive)/cc)-1),brRem=d?0:Math.max(0,st.bm-(n-st.brk.s)),
+  eta=n+r.drive+nb*st.bm+brRem;
+  $('eta').textContent=hm(eta);
+  $('rem').textContent=`Kalan ${Math.round(r.km)} km, ${dur(eta-n)}`;
+  $('sp').textContent=pos?Math.round(pos.sp):0;
+  $('av').textContent=st.mov>6e4?Math.round(st.dist/(st.mov/36e5)):0;
+  $('mx').textContent=Math.round(st.max);
+  if(st.cur)$('lc').textContent=(st.cur.ilce?st.cur.ilce+', ':'')+st.cur.il;
+  $('bc').classList.toggle('brk',!d);
+  if(d){
+    const due=cc-sb;
+    if(r.drive+sb<=cc&&due>0){$('bt1').textContent='Varışa kadar mola gerekmiyor';$('bt2').textContent=''}
+    else if(due>0){$('bt1').textContent='Sonraki mola '+dur(due)+' sonra';$('bt2').textContent=`Planlanan: ${hm(n+due)}, ${nb} mola kaldı`}
+    else{$('bt1').textContent='Mola zamanı';$('bt2').textContent='Güvenli bir yerde durun';if(!alerted){alerted=true;notify('Mola zamanı')}}
+  }else{
+    const left=st.bm-(n-st.brk.s);
+    $('bt1').textContent=left>0?'Mola bitmesine '+dur(left)+' ('+Math.max(0,Math.ceil(left/1000))+' sn)':'Mola süresi doldu, yola çıkabilirsiniz';
+    $('bt2').textContent='Mola yeri: '+st.brk.place;
+    if(left<=0&&!bAl){bAl=true;notify('Mola bitti, yola çıkma zamanı')}
+  }
+  $('bk').textContent=d?'Mola başladı':'Yola devam';
+  $('pp').hidden=!d;
+  if(d&&n-lastAdv>3e4&&pos){lastAdv=n;advise(r)}
+  const A=$('ad');A.hidden=!(d&&adv);if(adv){A.textContent=adv.t}
+  $('pv').hidden=!(d&&adv&&adv.p>0);if(adv&&adv.p>0)$('pv').textContent=`Molayı ${adv.p} dk ertele (namaz)`;
+  if(n%5000<1000)try{localStorage.setItem('yp',JSON.stringify(st))}catch{}
+}
+async function advise(r){
+  try{
+    if(r.drive<6e4){adv=null;return}
+    const dueIn=Math.max(0,st.iv+st.pp-st.sb),f=Math.min(1,dueIn/r.drive),
+    la=pos.lat+(st.b.lat-pos.lat)*f,lo=pos.lon+(st.b.lon-pos.lon)*f,at=new Date(Date.now()+dueIn),
+    ds=`${at.getDate()}-${at.getMonth()+1}-${at.getFullYear()}`,k='t'+ds+Math.round(la*2)+Math.round(lo*2);
+    if(!cache[k])cache[k]=(await j(`https://api.aladhan.com/v1/timings/${ds}?latitude=${Math.round(la*2)/2}&longitude=${Math.round(lo*2)/2}&method=13`)).data.timings;
+    const tm=cache[k];let g={il:'',ilce:''};try{g=await geo(Math.round(la*10)/10,Math.round(lo*10)/10)}catch{}
+    let t=`Sonraki mola yaklaşık ${hm(at)}, ${g.ilce||g.il||'yol üzeri'} civarında.`,p=0;
+    for(const[kk,nm]of[['Fajr','Sabah'],['Dhuhr','Öğle'],['Asr','İkindi'],['Maghrib','Akşam'],['Isha','Yatsı']]){
+      const[h,m]=tm[kk].slice(0,5).split(':'),T=new Date(at);T.setHours(+h,+m,0,0);const d=(T-at)/6e4;
+      if(d<=0&&d>-90){t+=` ${nm} vakti girmiş olacak, molada namaz kılabilirsiniz.`;break}
+      if(d>0&&d<=45){p=Math.round(d);t+=` ${nm} vakti molaya ${p} dk var. Molayı ertelerseniz vakitte kılabilirsiniz.`;break}
+    }
+    adv={t,p};
+  }catch{}
+}
+$('bk').onclick=()=>{
+  const n=Date.now();
+  if(st.ph=='d'){st.ph='b';bAl=false;st.brk={s:n,place:st.cur?(st.cur.ilce?st.cur.ilce+', ':'')+st.cur.il:'Bilinmiyor'}}
+  else{st.brks.push({s:st.brk.s,d:n-st.brk.s,place:st.brk.place});st.brk=null;st.ph='d';st.sb=0;st.pp=0;alerted=false;adv=null;lastAdv=0}
+};
+$('pp').onclick=()=>{st.pp+=9e5;alerted=false;lastAdv=0};
+$('pv').onclick=()=>{if(adv&&adv.p){st.pp+=adv.p*6e4;alerted=false;adv=null;lastAdv=0}};
+
+/* ---- Bildirim ---- */
+function beep(){try{ac=ac||new AudioContext();const o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);o.frequency.value=880;g.gain.value=.2;o.start();o.stop(ac.currentTime+.25)}catch{}}
+function notify(m){
+  const z=$('tz');z.textContent=m;z.style.display='block';setTimeout(()=>z.style.display='none',6000);
+  try{navigator.vibrate&&navigator.vibrate([300,100,300])}catch{}
+  beep();
+  try{if($('vo').checked){const u=new SpeechSynthesisUtterance(m);u.lang='tr-TR';speechSynthesis.speak(u)}}catch{}
+}
+
+/* ---- Özet ---- */
+$('fin').onclick=()=>{
+  if(!confirm('Yolculuk bitirilsin mi?'))return;
+  const n=Date.now();if(st.ph=='b'){st.brks.push({s:st.brk.s,d:n-st.brk.s,place:st.brk.place});st.ph='d'}
+  st.end=n;try{localStorage.setItem('yp',JSON.stringify(st))}catch{}summary();
+};
+function summary(){
+  $('r').hidden=true;$('s').hidden=true;const F=$('f');F.hidden=false;
+  const tot=st.end-st.t0,bt=st.brks.reduce((a,b)=>a+b.d,0),il=[...new Set(st.vis.map(v=>v.il))],
+  ic=[...new Map(st.vis.map(v=>[v.ilce+'|'+v.il,v])).values()],
+  av=st.mov>6e4?Math.round(st.dist/(st.mov/36e5)):0;
+  F.innerHTML=`<h1>Yolculuk özeti</h1>
+  <div class="card">${st.a.name} → ${st.b.name}<br>Başlangıç ${hm(st.t0)}, bitiş ${hm(st.end)}</div>
+  <div class="st"><div><b>${Math.round(st.dist)}</b><span>km yol</span></div><div><b>${av}</b><span>km/sa ortalama</span></div><div><b>${Math.round(st.max)}</b><span>km/sa en yüksek</span></div></div>
+  <div class="card">Toplam süre ${dur(tot)}<br>Sürüş ${dur(tot-bt)}<br>Mola ${dur(bt)} (${st.brks.length} mola)</div>
+  <h2>Mola verilen yerler</h2><ul>${st.brks.map(b=>`<li>${b.place}: ${dur(b.d)} (${hm(b.s)})</li>`).join('')||'<li>Mola kaydı yok</li>'}</ul>
+  <h2>Geçilen iller (${il.length})</h2><div>${il.join(', ')||'-'}</div>
+  <h2>Geçilen ilçeler (${ic.length})</h2><div>${ic.map(v=>v.ilce?v.ilce+' ('+v.il+')':v.il).join(', ')||'-'}</div>
+  <button class="big" id="nw">Yeni yolculuk</button>`;
+  $('nw').onclick=()=>{try{localStorage.removeItem('yp')}catch{}location.reload()};
+}
+
+/* ---- Açılışta devam et ---- */
+try{const x=JSON.parse(localStorage.getItem('yp')||'null');if(x){st=x;st.last=Date.now();if(st.end)summary();else run()}}catch{}
+if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+</script>
+</body></html>
