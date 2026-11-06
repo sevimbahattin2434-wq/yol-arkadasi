@@ -108,7 +108,7 @@ function show(){
 $('iv').oninput=$('bm').oninput=show;
 $('nm').onchange=()=>{$('iv').disabled=$('bm').disabled=$('nm').checked;show()};
 $('go').onclick=()=>{
-  st={a:pts.a,b:pts.b,km:plan.km,sec:plan.sec,nm:$('nm').checked,iv:$('nm').checked?1e15:+$('iv').value*36e5,bm:$('nm').checked?0:+$('bm').value*6e4,t0:Date.now(),last:Date.now(),ph:'d',sb:0,pp:0,dist:0,mov:0,max:0,brks:[],vis:[],cur:null,brk:null,end:0};
+  st={a:pts.a,b:pts.b,km:plan.km,sec:plan.sec,nm:$('nm').checked,iv:$('nm').checked?1e15:+$('iv').value*36e5,bm:$('nm').checked?0:+$('bm').value*6e4,t0:Date.now(),last:Date.now(),ph:'d',sb:0,pp:0,dist:0,mov:0,max:0,brks:[],vis:[],tr:[],cur:null,brk:null,end:0};
   beep();run();
 };
 
@@ -122,6 +122,8 @@ function watch(){
     if(pos&&acc<=60){const d=hav(pos.lat,pos.lon,c.latitude,c.longitude);if(sp==null)sp=d/((t-pos.t)/36e5);if(d>0.01&&st.ph=='d')st.dist+=d}
     if(sp!=null&&acc<=30&&sp<250&&sp>st.max&&st.ph=='d')st.max=sp;
     pos={lat:c.latitude,lon:c.longitude,t,sp:sp||0};
+    st.tr=st.tr||[];const lp=st.tr[st.tr.length-1];
+    if(acc<=50&&(!lp||hav(lp[0],lp[1],c.latitude,c.longitude)>=0.06)){st.tr.push([+c.latitude.toFixed(5),+c.longitude.toFixed(5)]);if(st.tr.length>3000)st.tr=simp(st.tr,0.03)}
     if(t-lastGeo>2e4){lastGeo=t;loc()}
   },()=>{$('lc').textContent='Konum izni gerekli'},{enableHighAccuracy:true,maximumAge:2000});
 }
@@ -166,7 +168,7 @@ async function nextP(){
 }
 async function loc(){
   try{const g=await geo(pos.lat,pos.lon);if(!g.il)return;
-    if(!st.cur||st.cur.il!=g.il||st.cur.ilce!=g.ilce){const first=!st.cur;st.cur=g;st.vis.push({il:g.il,ilce:g.ilce,t:Date.now()});if(!first)notify('Şimdi: '+pl(g))}
+    if(!st.cur||st.cur.il!=g.il||st.cur.ilce!=g.ilce){const first=!st.cur;st.cur=g;st.vis.push({il:g.il,ilce:g.ilce,t:Date.now(),lat:pos.lat,lon:pos.lon});if(!first)notify('Şimdi: '+pl(g))}
   }catch{}
 }
 function remMs(){
@@ -228,8 +230,8 @@ async function advise(r){
 }
 $('bk').onclick=()=>{
   const n=Date.now();
-  if(st.ph=='d'){st.ph='b';bAl=false;st.brk={s:n,place:st.cur?pl(st.cur):'Bilinmiyor'}}
-  else{st.brks.push({s:st.brk.s,d:n-st.brk.s,place:st.brk.place});st.brk=null;st.ph='d';st.sb=0;st.pp=0;alerted=false;adv=null;lastAdv=0}
+  if(st.ph=='d'){st.ph='b';bAl=false;st.brk={s:n,lat:pos?pos.lat:null,lon:pos?pos.lon:null,place:st.cur?pl(st.cur):'Bilinmiyor'}}
+  else{st.brks.push({s:st.brk.s,d:n-st.brk.s,place:st.brk.place,lat:st.brk.lat,lon:st.brk.lon});st.brk=null;st.ph='d';st.sb=0;st.pp=0;alerted=false;adv=null;lastAdv=0}
 };
 $('pp').onclick=()=>{st.pp+=9e5;alerted=false;lastAdv=0};
 $('pv').onclick=()=>{if(adv&&adv.p){st.pp+=adv.p*6e4;alerted=false;adv=null;lastAdv=0}};
@@ -246,9 +248,49 @@ function notify(m){
 /* ---- Özet ---- */
 $('fin').onclick=()=>{
   if(!confirm('Yolculuk bitirilsin mi?'))return;
-  const n=Date.now();if(st.ph=='b'){st.brks.push({s:st.brk.s,d:n-st.brk.s,place:st.brk.place});st.ph='d'}
-  st.end=n;try{localStorage.setItem('yp',JSON.stringify(st))}catch{}saveH(st);summary(st);
+  const n=Date.now();if(st.ph=='b'){st.brks.push({s:st.brk.s,d:n-st.brk.s,place:st.brk.place,lat:st.brk.lat,lon:st.brk.lon});st.ph='d'}
+  st.tr=simp(st.tr||[],0.04);st.end=n;try{localStorage.setItem('yp',JSON.stringify(st))}catch{}saveH(st);summary(st);
 };
+function simp(p,e){
+  const n=p.length;if(n<3)return p;const keep=new Uint8Array(n);keep[0]=keep[n-1]=1;const sk=[[0,n-1]],cy=Math.cos(p[0][0]*RD);
+  const X=q=>q[1]*cy*111.32,Y=q=>q[0]*110.57;
+  while(sk.length){
+    const[a,b]=sk.pop(),ax=X(p[a]),ay=Y(p[a]),dx=X(p[b])-ax,dy=Y(p[b])-ay,l=dx*dx+dy*dy;let dm=0,im=0;
+    for(let i=a+1;i<b;i++){const px=X(p[i])-ax,py=Y(p[i])-ay,t=l?Math.max(0,Math.min(1,(px*dx+py*dy)/l)):0,d=Math.hypot(px-t*dx,py-t*dy);if(d>dm){dm=d;im=i}}
+    if(dm>e){keep[im]=1;sk.push([a,im],[im,b])}
+  }
+  return p.filter((_,i)=>keep[i]);
+}
+function loadL(){
+  return window.L?Promise.resolve():new Promise((ok,no)=>{
+    const c=document.createElement('link');c.rel='stylesheet';c.href='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css';document.head.append(c);
+    const t=document.createElement('script');t.src='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js';t.onload=ok;t.onerror=no;document.head.append(t);setTimeout(no,8000);
+  });
+}
+function svgMap(el,T){
+  const tr=T.tr,cy=Math.cos(tr[0][0]*RD),xs=tr.map(q=>q[1]*cy),ys=tr.map(q=>q[0]);
+  let x0=xs[0],x1=xs[0],y0=ys[0],y1=ys[0];for(let i=1;i<tr.length;i++){x0=Math.min(x0,xs[i]);x1=Math.max(x1,xs[i]);y0=Math.min(y0,ys[i]);y1=Math.max(y1,ys[i])}
+  const sc=280/Math.max(x1-x0,y1-y0,1e-6),P=tr.map((q,i)=>[(xs[i]-x0)*sc+10,(y1-q[0])*sc+10]),f=P[0],l=P[P.length-1];
+  el.innerHTML=`<svg viewBox="0 0 300 300" style="width:100%;height:100%;background:var(--pn)"><polyline points="${P.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ')}" fill="none" stroke="#f2a900" stroke-width="3" stroke-linejoin="round"/><circle cx="${f[0]}" cy="${f[1]}" r="6" fill="#0a7a52" stroke="#fff"/><circle cx="${l[0]}" cy="${l[1]}" r="6" fill="#c0392b" stroke="#fff"/><text x="8" y="294" fill="#8fa8b8" font-size="10">Harita zemini yüklenemedi (internet yok)</text></svg>`;
+}
+function drawMap(T){
+  const el=$('mp'),tr=T.tr||[];
+  if(tr.length<2){el.outerHTML='<div class="card mt">Bu yolculukta güzergah kaydı yok.</div>';$('gx').hidden=true;return}
+  loadL().then(()=>{
+    const m=L.map(el),ln=L.polyline(tr,{color:'#f2a900',weight:4}).addTo(m);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(m);
+    m.fitBounds(ln.getBounds(),{padding:[20,20]});
+    const dot=(q,r,c,t)=>L.circleMarker(q,{radius:r,color:'#fff',weight:2,fillColor:c,fillOpacity:1}).addTo(m).bindPopup(t);
+    (T.vis||[]).filter(v=>v.lat!=null).forEach(v=>dot([v.lat,v.lon],3,'#2a4a62',pl(v)));
+    (T.brks||[]).filter(b=>b.lat!=null).forEach(b=>dot([b.lat,b.lon],8,'#f2a900','Mola: '+b.place+'<br>'+dur(b.d)));
+    dot(tr[0],7,'#0a7a52','Başlangıç');dot(tr[tr.length-1],7,'#c0392b','Bitiş');
+  }).catch(()=>svgMap(el,T));
+}
+function gpx(T){
+  const e=x=>String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;'),
+  x=`<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="Yol Arkadaşı" xmlns="http://www.topografix.com/GPX/1/1"><trk><name>${e(T.a.name)} - ${e(T.b.name)}</name><trkseg>${T.tr.map(q=>`<trkpt lat="${q[0]}" lon="${q[1]}"/>`).join('')}</trkseg></trk></gpx>`,
+  a=document.createElement('a');a.href=URL.createObjectURL(new Blob([x],{type:'application/gpx+xml'}));a.download='yolculuk-'+new Date(T.t0).toISOString().slice(0,10)+'.gpx';a.click();
+}
 const gH=()=>{try{return JSON.parse(localStorage.getItem('ypH')||'[]')}catch{return[]}};
 const sH=a=>{try{localStorage.setItem('ypH',JSON.stringify(a.slice(0,50)))}catch{}};
 function saveH(t){const a=gH().filter(x=>x.t0!=t.t0);a.unshift(t);sH(a)}
@@ -268,10 +310,12 @@ function summary(T,hist){
   <div class="card">${T.a.name} → ${T.b.name}<br>Başlangıç ${hs(T.t0)}<br>Bitiş ${hs(T.end)}</div>
   <div class="st"><div><b>${Math.round(T.dist)}</b><span>km yol</span></div><div><b>${av}</b><span>km/sa ortalama</span></div><div><b>${Math.round(T.max)}</b><span>km/sa en yüksek</span></div></div>
   <div class="card">Toplam süre ${dur(tot)}<br>Sürüş ${dur(tot-bt)}<br>Mola ${dur(bt)} (${T.brks.length} mola)</div>
+  <h2>Güzergah</h2><div id="mp" style="height:340px;border-radius:12px;overflow:hidden;border:1px solid var(--ln)"></div><button id="gx" style="width:100%;margin-top:10px">GPX olarak indir</button>
   <h2>Mola verilen yerler</h2><ul>${T.brks.map(b=>`<li>${b.place}: ${dur(b.d)} (${hm(b.s)})</li>`).join('')||'<li>Mola kaydı yok</li>'}</ul>
   <h2>Geçilen iller (${il.length})</h2><div>${il.join(', ')||'-'}</div>
   <h2>Geçilen ilçeler (${ic.length})</h2><div>${ic.map(v=>v.ilce?v.ilce+' ('+v.il+')':v.il).join(', ')||'-'}</div>
   ${hist?'<button class="big" id="bb">Geri</button><button id="dl" style="width:100%;margin-top:10px">Bu kaydı sil</button>':'<button class="big" id="nw">Yeni yolculuk</button>'}`;
+  drawMap(T);$('gx').onclick=()=>gpx(T);
   if(hist){
     $('bb').onclick=()=>{F.hidden=true;$('h').hidden=false;rh();window.scrollTo(0,0)};
     $('dl').onclick=()=>{if(confirm('Bu kayıt silinsin mi?')){sH(gH().filter(x=>x.t0!=T.t0));$('bb').onclick()}};
