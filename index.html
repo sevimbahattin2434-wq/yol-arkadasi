@@ -53,7 +53,7 @@ li{margin:3px 0}ul{padding-left:20px;margin:4px 0}
 </main>
 
 <main id="r" hidden>
-<div class="eta"><span>Tahmini varış</span><b id="eta">--:--</b><span id="rem"></span></div>
+<div class="eta"><span>Tahmini varış</span><b id="eta">--:--</b><span id="rem"></span><br><span id="el"></span></div>
 <div class="st"><div><b id="sp">0</b><span>km/sa şimdi</span></div><div><b id="av">0</b><span>km/sa ortalama</span></div><div><b id="mx">0</b><span>km/sa en yüksek</span></div></div>
 <div class="card" id="bc"><div id="bt1" class="am"></div><div id="bt2" class="mt"></div></div>
 <div class="card"><div class="mt">Şu an</div><div id="lc" style="font-size:20px;font-weight:700">Konum bekleniyor…</div><div id="np" class="am" style="margin-top:6px;font-weight:600"></div></div>
@@ -70,6 +70,8 @@ li{margin:3px 0}ul{padding-left:20px;margin:4px 0}
 const $=i=>document.getElementById(i),RD=Math.PI/180;
 const hav=(a,b,c,d)=>{const x=Math.sin((c-a)*RD/2)**2+Math.cos(a*RD)*Math.cos(c*RD)*Math.sin((d-b)*RD/2)**2;return 12742*Math.asin(Math.sqrt(x))};
 const hm=t=>new Date(t).toLocaleTimeString('tr',{hour:'2-digit',minute:'2-digit'});
+const hd=t=>{const d=new Date(t),n=new Date(),k=x=>new Date(x.getFullYear(),x.getMonth(),x.getDate()),df=Math.round((k(d)-k(n))/864e5);return(df<=0?'':df==1?'Yarın ':d.toLocaleDateString('tr',{weekday:'long'})+' ')+hm(t)};
+const hs=t=>new Date(t).toLocaleString('tr',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
 const dur=ms=>{const m=Math.max(0,Math.round(ms/6e4));return m>=60?Math.floor(m/60)+' sa '+(m%60)+' dk':m+' dk'};
 const pts={a:null,b:null},cache={};
 let plan=null,st=null,pos=null,adv=null,lastGeo=0,lastAdv=0,alerted=false,bAl=false,ac=null;
@@ -88,7 +90,7 @@ async function srch(w){
 }
 document.querySelectorAll('[data-w]').forEach(b=>b.onclick=()=>srch(b.dataset.w));
 ['a','b'].forEach(w=>$('i'+w).addEventListener('keydown',e=>{if(e.key=='Enter')srch(w)}));
-$('ga').onclick=()=>navigator.geolocation.getCurrentPosition(p=>{pts.a={lat:p.coords.latitude,lon:p.coords.longitude,name:'Konumum'};$('ia').value='Konumum';mk()},()=>alert('Konum izni verin.'),{enableHighAccuracy:true});
+$('ga').onclick=()=>navigator.geolocation.getCurrentPosition(async p=>{pts.a={lat:p.coords.latitude,lon:p.coords.longitude,name:'Konum'};$('ia').value='Konum alınıyor…';let nm='Konumum';try{nm=pl(await geo(p.coords.latitude,p.coords.longitude))||nm}catch{}pts.a.name=nm;$('ia').value=nm;mk()},()=>alert('Konum izni verin.'),{enableHighAccuracy:true});
 async function mk(){
   const{a,b}=pts;if(!a||!b)return;$('pl').textContent='Rota hesaplanıyor…';
   let km=hav(a.lat,a.lon,b.lat,b.lon)*1.3,sec=km/80*3600;
@@ -97,7 +99,7 @@ async function mk(){
 }
 function show(){
   if(!plan)return;const nm=$('nm').checked,iv=(+$('iv').value||3)*3600,bm=(+$('bm').value||0)*60,n=nm?0:Math.max(0,Math.ceil(plan.sec/iv)-1),tot=plan.sec+n*bm;
-  $('pl').innerHTML=`<b>${Math.round(plan.km)} km</b>, sürüş tahmini ${dur(plan.sec*1e3)}<br>${nm?'Molasız':n+' mola x '+$('bm').value+' dk'}<br>Toplam ${dur(tot*1e3)}. Şimdi çıkarsanız varış <b>${hm(Date.now()+tot*1e3)}</b>`;
+  $('pl').innerHTML=`<b>${Math.round(plan.km)} km</b>, sürüş tahmini ${dur(plan.sec*1e3)}<br>${nm?'Molasız':n+' mola x '+$('bm').value+' dk'}<br>Toplam ${dur(tot*1e3)}. Şimdi çıkarsanız varış <b>${hd(Date.now()+tot*1e3)}</b>`;
   $('go').disabled=false;
 }
 $('iv').oninput=$('bm').oninput=show;
@@ -176,7 +178,8 @@ function tick(){
   const r=remMs(),d=st.ph=='d',cyc=st.iv+st.pp,sb=d?st.sb:0,cc=d?cyc:st.iv,
   nb=Math.max(0,Math.ceil((sb+r.drive)/cc)-1),brRem=d?0:Math.max(0,st.bm-(n-st.brk.s)),
   eta=n+r.drive+nb*st.bm+brRem;
-  $('eta').textContent=hm(eta);
+  const et=hd(eta);$('eta').textContent=et;$('eta').style.fontSize=et.length>11?'32px':et.length>5?'42px':'';
+  $('el').textContent='Geçen süre: '+dur(n-st.t0);
   $('rem').textContent=`Kalan ${Math.round(r.km)} km, ${dur(eta-n)}`;
   $('sp').textContent=pos?Math.round(pos.sp):0;
   $('av').textContent=st.mov>6e4?Math.round(st.dist/(st.mov/36e5)):0;
@@ -187,7 +190,7 @@ function tick(){
     const due=cc-sb;
     if(st.nm){$('bt1').textContent='Molasız yolculuk';$('bt2').textContent=''}
     else if(r.drive+sb<=cc&&due>0){$('bt1').textContent='Varışa kadar mola gerekmiyor';$('bt2').textContent=''}
-    else if(due>0){$('bt1').textContent='Sonraki mola '+dur(due)+' sonra';$('bt2').textContent=`Planlanan: ${hm(n+due)}, ${nb} mola kaldı`}
+    else if(due>0){$('bt1').textContent='Sonraki mola '+dur(due)+' sonra';$('bt2').textContent=`Planlanan: ${hd(n+due)}, ${nb} mola kaldı`}
     else{$('bt1').textContent='Mola zamanı';$('bt2').textContent='Güvenli bir yerde durun';if(!alerted){alerted=true;notify('Mola zamanı')}}
   }else{
     const left=st.bm-(n-st.brk.s);
@@ -211,7 +214,7 @@ async function advise(r){
     ds=`${at.getDate()}-${at.getMonth()+1}-${at.getFullYear()}`,k='t'+ds+Math.round(la*2)+Math.round(lo*2);
     if(!cache[k])cache[k]=(await j(`https://api.aladhan.com/v1/timings/${ds}?latitude=${Math.round(la*2)/2}&longitude=${Math.round(lo*2)/2}&method=13`)).data.timings;
     const tm=cache[k];let g={il:'',ilce:''};try{g=await geo(Math.round(la*10)/10,Math.round(lo*10)/10)}catch{}
-    let t=`Sonraki mola yaklaşık ${hm(at)}, ${pl(g)||'yol üzeri'} civarında.`,p=0;
+    let t=`Sonraki mola yaklaşık ${hd(at)}, ${pl(g)||'yol üzeri'} civarında.`,p=0;
     for(const[kk,nm]of[['Fajr','Sabah'],['Dhuhr','Öğle'],['Asr','İkindi'],['Maghrib','Akşam'],['Isha','Yatsı']]){
       const[h,m]=tm[kk].slice(0,5).split(':'),T=new Date(at);T.setHours(+h,+m,0,0);const d=(T-at)/6e4;
       if(d<=0&&d>-90){t+=` ${nm} vakti girmiş olacak, molada namaz kılabilirsiniz.`;break}
@@ -249,7 +252,7 @@ function summary(){
   ic=[...new Map(st.vis.map(v=>[v.ilce+'|'+v.il,v])).values()],
   av=st.mov>6e4?Math.round(st.dist/(st.mov/36e5)):0;
   F.innerHTML=`<h1>Yolculuk özeti</h1>
-  <div class="card">${st.a.name} → ${st.b.name}<br>Başlangıç ${hm(st.t0)}, bitiş ${hm(st.end)}</div>
+  <div class="card">${st.a.name} → ${st.b.name}<br>Başlangıç ${hs(st.t0)}<br>Bitiş ${hs(st.end)}</div>
   <div class="st"><div><b>${Math.round(st.dist)}</b><span>km yol</span></div><div><b>${av}</b><span>km/sa ortalama</span></div><div><b>${Math.round(st.max)}</b><span>km/sa en yüksek</span></div></div>
   <div class="card">Toplam süre ${dur(tot)}<br>Sürüş ${dur(tot-bt)}<br>Mola ${dur(bt)} (${st.brks.length} mola)</div>
   <h2>Mola verilen yerler</h2><ul>${st.brks.map(b=>`<li>${b.place}: ${dur(b.d)} (${hm(b.s)})</li>`).join('')||'<li>Mola kaydı yok</li>'}</ul>
