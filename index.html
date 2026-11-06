@@ -50,6 +50,7 @@ li{margin:3px 0}ul{padding-left:20px;margin:4px 0}
 </div>
 <div class="card" id="pl">Başlangıç ve varış noktasını seçin.</div>
 <button class="big" id="go" disabled>Yolculuğu başlat</button>
+<button id="hb" style="width:100%;margin-top:14px">Geçmiş yolculuklar</button>
 </main>
 
 <main id="r" hidden>
@@ -65,6 +66,8 @@ li{margin:3px 0}ul{padding-left:20px;margin:4px 0}
 </main>
 
 <main id="f" hidden></main>
+
+<main id="h" hidden><h1>Geçmiş yolculuklar</h1><div id="hl" class="mt"></div><button class="big" id="hx">Geri</button></main>
 
 <script>
 const $=i=>document.getElementById(i),RD=Math.PI/180;
@@ -244,26 +247,42 @@ function notify(m){
 $('fin').onclick=()=>{
   if(!confirm('Yolculuk bitirilsin mi?'))return;
   const n=Date.now();if(st.ph=='b'){st.brks.push({s:st.brk.s,d:n-st.brk.s,place:st.brk.place});st.ph='d'}
-  st.end=n;try{localStorage.setItem('yp',JSON.stringify(st))}catch{}summary();
+  st.end=n;try{localStorage.setItem('yp',JSON.stringify(st))}catch{}saveH(st);summary(st);
 };
-function summary(){
-  $('r').hidden=true;$('s').hidden=true;const F=$('f');F.hidden=false;
-  const tot=st.end-st.t0,bt=st.brks.reduce((a,b)=>a+b.d,0),il=[...new Set(st.vis.map(v=>v.il))],
-  ic=[...new Map(st.vis.map(v=>[v.ilce+'|'+v.il,v])).values()],
-  av=st.mov>6e4?Math.round(st.dist/(st.mov/36e5)):0;
+const gH=()=>{try{return JSON.parse(localStorage.getItem('ypH')||'[]')}catch{return[]}};
+const sH=a=>{try{localStorage.setItem('ypH',JSON.stringify(a.slice(0,50)))}catch{}};
+function saveH(t){const a=gH().filter(x=>x.t0!=t.t0);a.unshift(t);sH(a)}
+function rh(){
+  const a=gH(),L=$('hl');L.innerHTML='';$('hb').textContent='Geçmiş yolculuklar ('+a.length+')';
+  if(!a.length){L.textContent='Henüz kayıtlı yolculuk yok.';return}
+  a.forEach(t=>{const b=document.createElement('button');b.style.cssText='display:block;width:100%;text-align:left;margin-top:8px';
+    b.innerHTML=`<b>${t.a.name} → ${t.b.name}</b><br><span class="mt">${hs(t.t0)}, ${Math.round(t.dist)} km, ${dur(t.end-t.t0)}</span>`;
+    b.onclick=()=>summary(t,true);L.append(b)});
+}
+function summary(T,hist){
+  $('r').hidden=true;$('s').hidden=true;$('h').hidden=true;const F=$('f');F.hidden=false;window.scrollTo(0,0);
+  const tot=T.end-T.t0,bt=T.brks.reduce((a,b)=>a+b.d,0),il=[...new Set(T.vis.map(v=>v.il))],
+  ic=[...new Map(T.vis.map(v=>[v.ilce+'|'+v.il,v])).values()],
+  av=T.mov>6e4?Math.round(T.dist/(T.mov/36e5)):0;
   F.innerHTML=`<h1>Yolculuk özeti</h1>
-  <div class="card">${st.a.name} → ${st.b.name}<br>Başlangıç ${hs(st.t0)}<br>Bitiş ${hs(st.end)}</div>
-  <div class="st"><div><b>${Math.round(st.dist)}</b><span>km yol</span></div><div><b>${av}</b><span>km/sa ortalama</span></div><div><b>${Math.round(st.max)}</b><span>km/sa en yüksek</span></div></div>
-  <div class="card">Toplam süre ${dur(tot)}<br>Sürüş ${dur(tot-bt)}<br>Mola ${dur(bt)} (${st.brks.length} mola)</div>
-  <h2>Mola verilen yerler</h2><ul>${st.brks.map(b=>`<li>${b.place}: ${dur(b.d)} (${hm(b.s)})</li>`).join('')||'<li>Mola kaydı yok</li>'}</ul>
+  <div class="card">${T.a.name} → ${T.b.name}<br>Başlangıç ${hs(T.t0)}<br>Bitiş ${hs(T.end)}</div>
+  <div class="st"><div><b>${Math.round(T.dist)}</b><span>km yol</span></div><div><b>${av}</b><span>km/sa ortalama</span></div><div><b>${Math.round(T.max)}</b><span>km/sa en yüksek</span></div></div>
+  <div class="card">Toplam süre ${dur(tot)}<br>Sürüş ${dur(tot-bt)}<br>Mola ${dur(bt)} (${T.brks.length} mola)</div>
+  <h2>Mola verilen yerler</h2><ul>${T.brks.map(b=>`<li>${b.place}: ${dur(b.d)} (${hm(b.s)})</li>`).join('')||'<li>Mola kaydı yok</li>'}</ul>
   <h2>Geçilen iller (${il.length})</h2><div>${il.join(', ')||'-'}</div>
   <h2>Geçilen ilçeler (${ic.length})</h2><div>${ic.map(v=>v.ilce?v.ilce+' ('+v.il+')':v.il).join(', ')||'-'}</div>
-  <button class="big" id="nw">Yeni yolculuk</button>`;
-  $('nw').onclick=()=>{try{localStorage.removeItem('yp')}catch{}location.reload()};
+  ${hist?'<button class="big" id="bb">Geri</button><button id="dl" style="width:100%;margin-top:10px">Bu kaydı sil</button>':'<button class="big" id="nw">Yeni yolculuk</button>'}`;
+  if(hist){
+    $('bb').onclick=()=>{F.hidden=true;$('h').hidden=false;rh();window.scrollTo(0,0)};
+    $('dl').onclick=()=>{if(confirm('Bu kayıt silinsin mi?')){sH(gH().filter(x=>x.t0!=T.t0));$('bb').onclick()}};
+  }else $('nw').onclick=()=>{try{localStorage.removeItem('yp')}catch{}location.reload()};
 }
 
 /* ---- Açılışta devam et ---- */
-try{const x=JSON.parse(localStorage.getItem('yp')||'null');if(x){st=x;st.last=Date.now();if(st.end)summary();else run()}}catch{}
+try{const x=JSON.parse(localStorage.getItem('yp')||'null');if(x){st=x;st.last=Date.now();if(st.end)summary(st);else run()}}catch{}
 if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+$('hb').onclick=()=>{$('s').hidden=true;$('h').hidden=false;rh();window.scrollTo(0,0)};
+$('hx').onclick=()=>{$('h').hidden=true;$('s').hidden=false;window.scrollTo(0,0)};
+rh();
 </script>
 </body></html>
