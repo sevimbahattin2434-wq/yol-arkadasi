@@ -43,6 +43,7 @@ li{margin:3px 0}ul{padding-left:20px;margin:4px 0}
 <div class="r"><input id="ia" placeholder="İl veya ilçe ara" enterkeyhint="search"><button id="ga" aria-label="Konumumu kullan">Konumum</button><button data-w="a">Ara</button></div><div class="ls" id="la"></div>
 <label for="ib">Nereye</label>
 <div class="r"><input id="ib" placeholder="İl veya ilçe ara" enterkeyhint="search"><button data-w="b">Ara</button></div><div class="ls" id="lb"></div>
+<div id="rb" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px"></div>
 <label style="display:flex;gap:10px;align-items:center;color:var(--tx);font-size:16px"><input type="checkbox" id="nm" style="width:auto"> Molasız yolculuk</label>
 <div class="g2">
 <div><label for="iv">Mola aralığı (saat)</label><input id="iv" type="number" value="3" step="0.5" min="0.5"></div>
@@ -116,6 +117,7 @@ function show(){
 $('iv').oninput=$('bm').oninput=show;
 $('nm').onchange=()=>{$('iv').disabled=$('bm').disabled=$('nm').checked;show()};
 $('go').onclick=()=>{
+  saveR(pts.b);
   const tt=plan.sec+($('nm').checked?0:Math.max(0,Math.ceil(plan.sec/((+$('iv').value||3)*3600))-1)*(+$('bm').value||0)*60);
   st={pe:Date.now()+tt*1e3,a:pts.a,b:pts.b,km:plan.km,sec:plan.sec,nm:$('nm').checked,iv:$('nm').checked?1e15:+$('iv').value*36e5,bm:$('nm').checked?0:+$('bm').value*6e4,t0:Date.now(),last:Date.now(),ph:'d',sb:0,pp:0,dist:0,mov:0,max:0,brks:[],vis:[],tr:[],cur:null,brk:null,end:0};
   beep();run();
@@ -311,6 +313,18 @@ function gpx(T){
 const gH=()=>{try{return JSON.parse(localStorage.getItem('ypH')||'[]')}catch{return[]}};
 const sH=a=>{try{localStorage.setItem('ypH',JSON.stringify(a.slice(0,50)))}catch{}};
 function saveH(t){const a=gH().filter(x=>x.t0!=t.t0);a.unshift(t);sH(a)}
+const gR=()=>{try{return JSON.parse(localStorage.getItem('ypR')||'[]')}catch{return[]}};
+function saveR(b){
+  const a=gR().filter(x=>x.name!=b.name);a.unshift({lat:b.lat,lon:b.lon,name:b.name});
+  try{localStorage.setItem('ypR',JSON.stringify(a.slice(0,3)))}catch{}
+}
+function rr(){
+  let a=gR();
+  if(!a.length)a=gH().map(t=>t.b).filter((x,i,ar)=>x&&ar.findIndex(y=>y.name==x.name)==i).slice(0,3);
+  const D=$('rb');D.innerHTML=a.length?'<span class="mt" style="font-size:13px">Son hedefler:</span>':'';
+  a.forEach(x=>{const b=document.createElement('button');b.textContent=x.name;b.style.cssText='font-size:14px;padding:8px 12px';
+    b.onclick=()=>{pts.b={lat:x.lat,lon:x.lon,name:x.name};$('ib').value=x.name;$('lb').innerHTML='';mk()};D.append(b)});
+}
 function rh(){
   const a=gH(),L=$('hl');L.innerHTML='';$('hb').textContent='Geçmiş yolculuklar ('+a.length+')';
   if(!a.length){L.textContent='Henüz kayıtlı yolculuk yok.';return}
@@ -346,6 +360,6 @@ try{const x=JSON.parse(localStorage.getItem('yp')||'null');if(x){st=x;st.last=Da
 if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 $('hb').onclick=()=>{$('s').hidden=true;$('h').hidden=false;rh();window.scrollTo(0,0)};
 $('hx').onclick=()=>{$('h').hidden=true;$('s').hidden=false;window.scrollTo(0,0)};
-rh();
+rh();rr();
 </script>
 </body></html>
