@@ -77,7 +77,7 @@ const hd=t=>{const d=new Date(t),n=new Date(),k=x=>new Date(x.getFullYear(),x.ge
 const hs=t=>new Date(t).toLocaleString('tr',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
 const dur=ms=>{const m=Math.max(0,Math.round(ms/6e4));return m>=60?Math.floor(m/60)+' sa '+(m%60)+' dk':m+' dk'};
 const pts={a:null,b:null},cache={};
-let plan=null,st=null,pos=null,adv=null,lastGeo=0,lastAdv=0,alerted=false,bAl=false,ac=null;
+let plan=null,st=null,pos=null,an=null,adv=null,lastGeo=0,lastAdv=0,alerted=false,bAl=false,ac=null;
 async function j(u){const r=await fetch(u);if(!r.ok)throw 0;return r.json()}
 
 /* ---- Kurulum ---- */
@@ -118,12 +118,18 @@ async function lock(){try{if(navigator.wakeLock)await navigator.wakeLock.request
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&st&&!st.end)lock()});
 function watch(){
   navigator.geolocation.watchPosition(p=>{
-    const c=p.coords,t=Date.now(),acc=c.accuracy;let sp=c.speed!=null?c.speed*3.6:null;
-    if(pos&&acc<=60){const d=hav(pos.lat,pos.lon,c.latitude,c.longitude);if(sp==null)sp=d/((t-pos.t)/36e5);if(d>0.01&&st.ph=='d')st.dist+=d}
+    const c=p.coords,t=Date.now(),acc=c.accuracy;let sp=c.speed!=null?c.speed*3.6:null,stat=false;
+    /* Duruyor mu? Konum, çapa noktasından hata payı kadar bile uzaklaşmadıysa GPS sapmasıdır */
+    if(!an)an={lat:c.latitude,lon:c.longitude};
+    const dA=hav(an.lat,an.lon,c.latitude,c.longitude);
+    if(dA<Math.max(0.06,acc/1000*3)&&(sp==null||sp<8)){stat=true;sp=0}else an={lat:c.latitude,lon:c.longitude};
+    if(!stat&&pos&&acc<=60){const d=hav(pos.lat,pos.lon,c.latitude,c.longitude);if(sp==null)sp=d/(Math.max(t-pos.t,1000)/36e5);if(st.ph=='d')st.dist+=d}
+    if(!stat&&sp!=null&&sp<7&&acc>20)sp=0;
+    if(sp==null||!isFinite(sp))sp=0;
     if(sp!=null&&acc<=30&&sp<250&&sp>st.max&&st.ph=='d')st.max=sp;
     pos={lat:c.latitude,lon:c.longitude,t,sp:sp||0};
     st.tr=st.tr||[];const lp=st.tr[st.tr.length-1];
-    if(acc<=50&&(!lp||hav(lp[0],lp[1],c.latitude,c.longitude)>=0.06)){st.tr.push([+c.latitude.toFixed(5),+c.longitude.toFixed(5)]);if(st.tr.length>3000)st.tr=simp(st.tr,0.03)}
+    if(!stat&&acc<=50&&(!lp||hav(lp[0],lp[1],c.latitude,c.longitude)>=0.06)){st.tr.push([+c.latitude.toFixed(5),+c.longitude.toFixed(5)]);if(st.tr.length>3000)st.tr=simp(st.tr,0.03)}
     if(t-lastGeo>2e4){lastGeo=t;loc()}
   },()=>{$('lc').textContent='Konum izni gerekli'},{enableHighAccuracy:true,maximumAge:2000});
 }
