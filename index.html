@@ -51,6 +51,7 @@ li{margin:3px 0}ul{padding-left:20px;margin:4px 0}
 <div class="card" id="pl">Başlangıç ve varış noktasını seçin.</div>
 <button class="big" id="go" disabled>Yolculuğu başlat</button>
 <button id="hb" style="width:100%;margin-top:14px">Geçmiş yolculuklar</button>
+<div class="mt" style="margin-top:18px;text-align:center">Sürüm 12<br><button id="up" style="margin-top:8px;font-size:14px">Güncellemeyi yenile</button></div>
 </main>
 
 <main id="r" hidden>
@@ -331,6 +332,10 @@ function summary(T,hist){
 /* ---- Açılışta devam et ---- */
 try{const x=JSON.parse(localStorage.getItem('yp')||'null');if(x){st=x;st.last=Date.now();if(st.end)summary(st);else run()}}catch{}
 if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+$('up').onclick=async()=>{
+  try{(await navigator.serviceWorker.getRegistrations()).forEach(r=>r.unregister());(await caches.keys()).forEach(k=>caches.delete(k))}catch{}
+  location.href=location.pathname+'?v='+Date.now();
+};
 $('hb').onclick=()=>{$('s').hidden=true;$('h').hidden=false;rh();window.scrollTo(0,0)};
 $('hx').onclick=()=>{$('h').hidden=true;$('s').hidden=false;window.scrollTo(0,0)};
 rh();
