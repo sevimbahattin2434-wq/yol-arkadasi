@@ -290,14 +290,14 @@ function svgMap(el,T){
   const tr=T.tr,cy=Math.cos(tr[0][0]*RD),xs=tr.map(q=>q[1]*cy),ys=tr.map(q=>q[0]);
   let x0=xs[0],x1=xs[0],y0=ys[0],y1=ys[0];for(let i=1;i<tr.length;i++){x0=Math.min(x0,xs[i]);x1=Math.max(x1,xs[i]);y0=Math.min(y0,ys[i]);y1=Math.max(y1,ys[i])}
   const sc=280/Math.max(x1-x0,y1-y0,1e-6),P=tr.map((q,i)=>[(xs[i]-x0)*sc+10,(y1-q[0])*sc+10]),f=P[0],l=P[P.length-1];
-  el.innerHTML=`<svg viewBox="0 0 300 300" style="width:100%;height:100%;background:var(--pn)"><polyline points="${P.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ')}" fill="none" stroke="#f2a900" stroke-width="3" stroke-linejoin="round"/><circle cx="${f[0]}" cy="${f[1]}" r="6" fill="#0a7a52" stroke="#fff"/><circle cx="${l[0]}" cy="${l[1]}" r="6" fill="#c0392b" stroke="#fff"/><text x="8" y="294" fill="#8fa8b8" font-size="10">Harita zemini yüklenemedi (internet yok)</text></svg>`;
+  el.innerHTML=`<svg viewBox="0 0 300 300" style="width:100%;height:100%;background:var(--pn)"><polyline points="${P.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ')}" fill="none" stroke="#1a73e8" stroke-width="3" stroke-linejoin="round"/><circle cx="${f[0]}" cy="${f[1]}" r="6" fill="#0a7a52" stroke="#fff"/><circle cx="${l[0]}" cy="${l[1]}" r="6" fill="#c0392b" stroke="#fff"/><text x="8" y="294" fill="#8fa8b8" font-size="10">Harita zemini yüklenemedi (internet yok)</text></svg>`;
 }
 function drawMap(T){
   const el=$('mp'),tr=T.tr||[];
   if(tr.length<2){el.outerHTML='<div class="card mt">Bu yolculukta güzergah kaydı yok.</div>';$('gx').hidden=true;return}
   loadL().then(()=>{
-    const m=L.map(el),ln=L.polyline(tr,{color:'#f2a900',weight:4}).addTo(m);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(m);
+    const m=L.map(el);L.polyline(tr,{color:'#fff',weight:9,opacity:.95,lineJoin:'round'}).addTo(m);const ln=L.polyline(tr,{color:'#1a73e8',weight:5,lineJoin:'round'}).addTo(m);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19,attribution:'© OpenStreetMap, © CARTO'}).addTo(m);
     m.fitBounds(ln.getBounds(),{padding:[20,20]});
     const dot=(q,r,c,t)=>L.circleMarker(q,{radius:r,color:'#fff',weight:2,fillColor:c,fillOpacity:1}).addTo(m).bindPopup(t);
     (T.vis||[]).filter(v=>v.lat!=null).forEach(v=>dot([v.lat,v.lon],3,'#2a4a62',pl(v)));
