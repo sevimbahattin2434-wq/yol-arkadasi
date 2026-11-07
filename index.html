@@ -35,6 +35,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--am)}
 #tz{position:fixed;left:14px;right:14px;top:max(10px,env(safe-area-inset-top));background:var(--am);color:#1a1200;border-radius:12px;padding:14px;font-weight:700;display:none;z-index:9}
 li{margin:3px 0}ul{padding-left:20px;margin:4px 0}
 #mp .leaflet-tile-pane{filter:saturate(.4) contrast(.92) brightness(1.05)}
+button.arm{background:var(--am);border-color:var(--am);color:#1a1200;font-weight:700}
 </style></head><body>
 <div id="tz"></div>
 
@@ -266,8 +267,11 @@ function notify(m){
 }
 
 /* ---- Özet ---- */
+let finArm=0;
 $('fin').onclick=()=>{
-  if(!confirm('Yolculuk bitirilsin mi?'))return;
+  const b=$('fin');
+  if(!finArm){finArm=setTimeout(()=>{finArm=0;b.textContent='Yolculuğu bitir';b.classList.remove('arm')},5000);b.textContent='Bitirmek için tekrar dokunun';b.classList.add('arm');return}
+  clearTimeout(finArm);finArm=0;
   const n=Date.now();if(st.ph=='b'){st.brks.push({s:st.brk.s,d:n-st.brk.s,place:st.brk.place,lat:st.brk.lat,lon:st.brk.lon});st.ph='d'}
   st.tr=simp(st.tr||[],0.04);st.end=n;try{localStorage.setItem('yp',JSON.stringify(st))}catch{}saveH(st);summary(st);
 };
@@ -352,7 +356,12 @@ function summary(T,hist){
   drawMap(T);$('gx').onclick=()=>gpx(T);
   if(hist){
     $('bb').onclick=()=>{F.hidden=true;$('h').hidden=false;rh();window.scrollTo(0,0)};
-    $('dl').onclick=()=>{if(confirm('Bu kayıt silinsin mi?')){sH(gH().filter(x=>x.t0!=T.t0));$('bb').onclick()}};
+    let da=0;
+    $('dl').onclick=()=>{
+      const b=$('dl');
+      if(!da){da=setTimeout(()=>{da=0;b.textContent='Bu kaydı sil';b.classList.remove('arm')},5000);b.textContent='Silmek için tekrar dokunun';b.classList.add('arm');return}
+      clearTimeout(da);da=0;sH(gH().filter(x=>x.t0!=T.t0));$('bb').onclick();
+    };
   }else $('nw').onclick=()=>{try{localStorage.removeItem('yp')}catch{}location.reload()};
 }
 
