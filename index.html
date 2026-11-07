@@ -34,6 +34,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--am)}
 .mt{color:var(--mt);font-size:14px}
 #tz{position:fixed;left:14px;right:14px;top:max(10px,env(safe-area-inset-top));background:var(--am);color:#1a1200;border-radius:12px;padding:14px;font-weight:700;display:none;z-index:9}
 li{margin:3px 0}ul{padding-left:20px;margin:4px 0}
+#mp .leaflet-tile-pane{filter:saturate(.4) contrast(.92) brightness(1.05)}
 </style></head><body>
 <div id="tz"></div>
 
@@ -297,7 +298,7 @@ function drawMap(T){
   if(tr.length<2){el.outerHTML='<div class="card mt">Bu yolculukta güzergah kaydı yok.</div>';$('gx').hidden=true;return}
   loadL().then(()=>{
     const m=L.map(el);L.polyline(tr,{color:'#fff',weight:9,opacity:.95,lineJoin:'round'}).addTo(m);const ln=L.polyline(tr,{color:'#1a73e8',weight:5,lineJoin:'round'}).addTo(m);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19,attribution:'© OpenStreetMap, © CARTO'}).addTo(m);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(m);
     m.fitBounds(ln.getBounds(),{padding:[20,20]});
     const dot=(q,r,c,t)=>L.circleMarker(q,{radius:r,color:'#fff',weight:2,fillColor:c,fillOpacity:1}).addTo(m).bindPopup(t);
     (T.vis||[]).filter(v=>v.lat!=null).forEach(v=>dot([v.lat,v.lon],3,'#2a4a62',pl(v)));
