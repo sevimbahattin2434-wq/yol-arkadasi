@@ -65,7 +65,8 @@ button.arm{background:var(--am);border-color:var(--am);color:#1a1200;font-weight
 <div class="bt"><button id="bk" class="big" style="margin:0">Mola başladı</button></div>
 <div class="bt"><button id="pp">Molayı 15 dk ertele</button><button id="pv" hidden></button></div>
 <div class="bt"><button id="fin">Yolculuğu bitir</button></div>
-<label class="mt" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="vo" checked style="width:auto"> Sesli bildirim</label>
+<label class="mt" style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="vi" checked style="width:auto"> Sesli bildirim: İlçeler</label>
+<label class="mt" style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" id="vl" checked style="width:auto"> Sesli bildirim: İller</label>
 </main>
 
 <main id="f" hidden></main>
@@ -189,7 +190,7 @@ async function nextP(){
 }
 async function loc(){
   try{const g=await geo(pos.lat,pos.lon);if(!g.il)return;
-    if(!st.cur||st.cur.il!=g.il||st.cur.ilce!=g.ilce){const first=!st.cur;st.cur=g;st.vis.push({il:g.il,ilce:g.ilce,t:Date.now(),lat:pos.lat,lon:pos.lon});if(!first)notify('Şimdi: '+pl(g))}
+    if(!st.cur||st.cur.il!=g.il||st.cur.ilce!=g.ilce){const first=!st.cur,ilCh=first||st.cur.il!=g.il;st.cur=g;st.vis.push({il:g.il,ilce:g.ilce,t:Date.now(),lat:pos.lat,lon:pos.lon});if(!first&&($('vi').checked||(ilCh&&$('vl').checked)))notify('Şimdi: '+pl(g))}
   }catch{}
 }
 function remMs(){
@@ -265,7 +266,7 @@ function notify(m){
   const z=$('tz');z.textContent=m;z.style.display='block';setTimeout(()=>z.style.display='none',6000);
   try{navigator.vibrate&&navigator.vibrate([300,100,300])}catch{}
   beep();
-  try{if($('vo').checked){const u=new SpeechSynthesisUtterance(m);u.lang='tr-TR';speechSynthesis.speak(u)}}catch{}
+  try{const u=new SpeechSynthesisUtterance(m);u.lang='tr-TR';speechSynthesis.speak(u)}catch{}
 }
 
 /* ---- Özet ---- */
@@ -401,6 +402,8 @@ $('hb').onclick=()=>{$('s').hidden=true;$('h').hidden=false;rh();window.scrollTo
 $('ga2').onclick=showAll;
 $('gb').onclick=()=>{$('g').hidden=true;$('h').hidden=false;window.scrollTo(0,0)};
 $('hx').onclick=()=>{$('h').hidden=true;$('s').hidden=false;window.scrollTo(0,0)};
+try{const v=JSON.parse(localStorage.getItem('ypV')||'null');if(v){$('vi').checked=!!v.i;$('vl').checked=!!v.l}}catch{}
+['vi','vl'].forEach(i=>$(i).onchange=()=>{try{localStorage.setItem('ypV',JSON.stringify({i:$('vi').checked,l:$('vl').checked}))}catch{}});
 rh();rr();
 </script>
 </body></html>
