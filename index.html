@@ -73,7 +73,7 @@ button.arm{background:var(--am);border-color:var(--am);color:#1a1200;font-weight
 
 <main id="g" hidden><h1>Gittiğim yerler</h1><div id="am" style="height:60vh;min-height:360px;border-radius:12px;overflow:hidden;border:1px solid var(--ln)"></div><div class="card" id="as"></div><button class="big" id="gb">Geri</button></main>
 
-<main id="h" hidden><h1>Geçmiş yolculuklar</h1><button id="ga2" class="big" style="margin:0 0 12px">Tüm yolculuklar haritası</button><div id="hl" class="mt"></div><button class="big" id="hx">Geri</button></main>
+<main id="h" hidden><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:6px 0 10px"><button id="hx">← Geri</button><h1 style="margin:0">Geçmiş yolculuklar</h1></div><button id="ga2" class="big" style="margin:0 0 8px">Tüm yolculuklar haritası</button><div class="mt" style="font-size:13px;margin:0 0 6px">Silmek için bir yolculuğa uzun basın.</div><div id="hl" class="mt"></div></main>
 
 <script>
 const $=i=>document.getElementById(i),RD=Math.PI/180;
@@ -372,12 +372,29 @@ function rr(){
   a.forEach(x=>{const b=document.createElement('button');b.textContent=x.name;b.style.cssText='font-size:14px;padding:8px 12px';
     b.onclick=()=>{pts.b={lat:x.lat,lon:x.lon,name:x.name};$('ib').value=x.name;$('lb').innerHTML='';mk()};D.append(b)});
 }
+function askDel(t,b){
+  try{navigator.vibrate&&navigator.vibrate(40)}catch{}
+  const d=document.createElement('div');d.className='card';d.style.borderColor='var(--am)';
+  d.innerHTML=`<b>${t.a.name} → ${t.b.name}</b><br><span class="mt">Bu yolculuk silinsin mi?</span><div class="bt"><button data-n>Vazgeç</button><button class="arm" data-y disabled>Sil</button></div>`;
+  b.replaceWith(d);
+  const y=d.querySelector('[data-y]');
+  setTimeout(()=>{y.disabled=false},700);
+  y.onclick=()=>{sH(gH().filter(x=>x.t0!=t.t0));rh()};
+  d.querySelector('[data-n]').onclick=()=>rh();
+}
 function rh(){
   const a=gH(),L=$('hl');L.innerHTML='';$('hb').textContent='Geçmiş yolculuklar ('+a.length+')';
   if(!a.length){L.textContent='Henüz kayıtlı yolculuk yok.';return}
-  a.forEach(t=>{const b=document.createElement('button');b.style.cssText='display:block;width:100%;text-align:left;margin-top:8px';
+  a.forEach(t=>{
+    const b=document.createElement('button');b.style.cssText='display:block;width:100%;text-align:left;margin-top:8px;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none';
     b.innerHTML=`<b>${t.a.name} → ${t.b.name}</b><br><span class="mt">${hs(t.t0)}, ${Math.round(t.dist)} km, ${dur(t.end-t.t0)}</span>`;
-    b.onclick=()=>summary(t,true);L.append(b)});
+    let tm=0,lp=false;const clr=()=>clearTimeout(tm);
+    b.addEventListener('pointerdown',()=>{lp=false;clr();tm=setTimeout(()=>{lp=true;askDel(t,b)},600)});
+    ['pointerup','pointerleave','pointercancel'].forEach(e=>b.addEventListener(e,clr));
+    b.addEventListener('contextmenu',e=>e.preventDefault());
+    b.onclick=()=>{if(lp){lp=false;return}summary(t,true)};
+    L.append(b);
+  });
 }
 function summary(T,hist){
   $('r').hidden=true;$('s').hidden=true;$('h').hidden=true;const F=$('f');F.hidden=false;window.scrollTo(0,0);
