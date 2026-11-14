@@ -46,6 +46,9 @@ button.arm{background:var(--am);border-color:var(--am);color:#1a1200;font-weight
 <label for="ib">Nereye</label>
 <div class="r"><input id="ib" placeholder="İl veya ilçe ara" enterkeyhint="search"><button data-w="b">Ara</button></div><div class="ls" id="lb"></div>
 <div id="rb" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px"></div>
+<div id="vw"></div>
+<button id="ax" style="margin-top:8px;font-size:14px">+ Ara durak ekle</button>
+<div id="xr" hidden><div class="r" style="margin-top:8px"><input id="ix" placeholder="Ara durak: il veya ilçe ara" enterkeyhint="search"><button data-w="x">Ara</button></div><div class="ls" id="lx"></div></div>
 <label style="display:flex;gap:10px;align-items:center;color:var(--tx);font-size:16px"><input type="checkbox" id="nm" style="width:auto"> Molasız yolculuk</label>
 <div class="g2">
 <div><label for="iv">Mola aralığı (saat)</label><input id="iv" type="number" value="3" step="0.5" min="0.5"></div>
@@ -82,7 +85,7 @@ const hm=t=>new Date(t).toLocaleTimeString('tr',{hour:'2-digit',minute:'2-digit'
 const hd=t=>{const d=new Date(t),n=new Date(),k=x=>new Date(x.getFullYear(),x.getMonth(),x.getDate()),df=Math.round((k(d)-k(n))/864e5);return(df<=0?'':df==1?'Yarın ':d.toLocaleDateString('tr',{weekday:'long'})+' ')+hm(t)};
 const hs=t=>new Date(t).toLocaleString('tr',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
 const dur=ms=>{const m=Math.max(0,Math.round(ms/6e4));return m>=60?Math.floor(m/60)+' sa '+(m%60)+' dk':m+' dk'};
-const pts={a:null,b:null},cache={};
+const pts={a:null,b:null,v:[]},cache={};
 let plan=null,st=null,pos=null,an=null,adv=null,lastGeo=0,lastAdv=0,alerted=false,bAl=false,ac=null;
 async function j(u){const r=await fetch(u);if(!r.ok)throw 0;return r.json()}
 
@@ -93,12 +96,14 @@ async function srch(w){
     const r=await j('https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=tr&accept-language=tr&q='+encodeURIComponent(q));
     L.innerHTML='';
     r.forEach(x=>{const b=document.createElement('button');b.textContent=x.display_name.split(',').slice(0,3).join(',');
-      b.onclick=()=>{pts[w]={lat:+x.lat,lon:+x.lon,name:x.display_name.split(',')[0]};$('i'+w).value=pts[w].name;L.innerHTML='';mk()};L.append(b)});
+      b.onclick=()=>{const p={lat:+x.lat,lon:+x.lon,name:x.display_name.split(',')[0]};
+        if(w=='x'){pts.v.push(p);$('ix').value='';L.innerHTML='';rv();mk()}
+        else{pts[w]=p;$('i'+w).value=p.name;L.innerHTML='';mk()}};L.append(b)});
     if(!r.length)L.textContent='Sonuç yok, farklı yazın.';
   }catch{L.textContent='Arama başarısız. İnternet bağlantısını kontrol edin.'}
 }
 document.querySelectorAll('[data-w]').forEach(b=>b.onclick=()=>srch(b.dataset.w));
-['a','b'].forEach(w=>$('i'+w).addEventListener('keydown',e=>{if(e.key=='Enter')srch(w)}));
+['a','b','x'].forEach(w=>$('i'+w).addEventListener('keydown',e=>{if(e.key=='Enter')srch(w)}));
 $('ga').onclick=()=>{
   const b=$('ga');b.disabled=true;b.textContent='Alınıyor…';$('ia').value='Konum alınıyor…';
   const done=()=>{b.disabled=false;b.textContent='Konumum'};
@@ -108,24 +113,37 @@ $('ga').onclick=()=>{
     pts.a.name=nm;$('ia').value=nm;done();mk();
   },()=>{done();$('ia').value='';alert('Konum alınamadı. Konum iznini ve GPS\'i kontrol edip tekrar deneyin.')},{enableHighAccuracy:true,timeout:20000});
 };
+function rv(){
+  const D=$('vw');D.innerHTML='';
+  pts.v.forEach((p,i)=>{const b=document.createElement('button');b.style.cssText='display:inline-block;margin:6px 6px 0 0;font-size:14px;padding:8px 12px';
+    b.textContent=(i+1)+'. '+p.name+' ✕';b.onclick=()=>{pts.v.splice(i,1);rv();mk()};D.append(b)});
+  $('ax').hidden=pts.v.length>=5;
+}
+$('ax').onclick=()=>{$('xr').hidden=!$('xr').hidden};
 async function mk(){
   const{a,b}=pts;if(!a||!b)return;$('pl').textContent='Rota hesaplanıyor…';
-  let km=hav(a.lat,a.lon,b.lat,b.lon)*1.3,raw=km/80*3600,ok=false;
-  try{const r=await j(`https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=false`);km=r.routes[0].distance/1000;raw=r.routes[0].duration;ok=true}catch{}
-  const c=corr(km);plan={km,raw,ok,f:c.f,n:c.n,sec:raw*c.f};show();
+  const P=[a,...pts.v,b];
+  let legs=P.slice(1).map((p,i)=>{const k=hav(P[i].lat,P[i].lon,p.lat,p.lon)*1.3;return{km:k,raw:k/80*3600}}),ok=false;
+  try{
+    const r=await j(`https://router.project-osrm.org/route/v1/driving/${P.map(p=>p.lon+','+p.lat).join(';')}?overview=false`);
+    const lg=r.routes[0].legs;if(lg.length!=P.length-1)throw 0;
+    legs=lg.map(l=>({km:l.distance/1000,raw:l.duration}));ok=true;
+  }catch{}
+  const km=legs.reduce((x,l)=>x+l.km,0),raw=legs.reduce((x,l)=>x+l.raw,0),c=corr(km);
+  plan={km,raw,ok,f:c.f,n:c.n,sec:raw*c.f,legs,names:P.map(p=>p.name)};show();
 }
 /* Trafik katsayısı: kısa (<60 km) ve uzun yolculuklar için ayrı, geçmiş yolculuklardan öğrenilir */
 function corr(km){
   const sh=km<60,d=sh?1.7:1.1;
-  const a=gH().filter(t=>t.raw&&t.rok&&(t.km<60)==sh&&t.dist>=0.7*t.km&&(t.ar||t.end)).slice(0,8)
+  const a=gH().filter(t=>t.raw&&t.rok&&!(t.v&&t.v.length)&&(t.km<60)==sh&&t.dist>=0.7*t.km&&(t.ar||t.end)).slice(0,8)
     .map(t=>((t.ar||t.end)-t.t0-(t.brks||[]).reduce((x,b)=>x+b.d,0))/1e3/t.raw).filter(r=>r>0.7&&r<4).sort((x,y)=>x-y);
   if(!a.length)return{f:d,n:0};
   const m=a[Math.floor(a.length/2)];
   return{f:+((m*a.length+d)/(a.length+1)).toFixed(2),n:a.length};
 }
 function show(){
-  if(!plan)return;const nm=$('nm').checked,iv=(+$('iv').value||3)*3600,bm=(+$('bm').value||0)*60,n=nm?0:Math.max(0,Math.ceil(plan.sec/iv)-1),tot=plan.sec+n*bm;
-  $('pl').innerHTML=`<b>${Math.round(plan.km)} km</b>, sürüş tahmini ${dur(plan.sec*1e3)}<br><span class="mt">Trafik katsayısı x${plan.f} (${plan.n?plan.n+' yolculuktan öğrenildi':'başlangıç değeri'})</span><br>${nm?'Molasız':n+' mola x '+$('bm').value+' dk'}<br>Toplam ${dur(tot*1e3)}. Şimdi çıkarsanız varış <b>${hd(Date.now()+tot*1e3)}</b>`;
+  if(!plan)return;const nm=$('nm').checked,iv=(+$('iv').value||3)*3600,bm=(+$('bm').value||0)*60,n=nm?0:Math.max(0,Math.ceil(plan.sec/iv)-1),tot=plan.sec+n*bm,lg=plan.legs.length>1?'<br>'+plan.legs.map((l,i)=>`<span class="mt">${plan.names[i]} → ${plan.names[i+1]}: ${Math.round(l.km)} km, ${dur(l.raw*plan.f*1e3)}</span>`).join('<br>'):'';
+  $('pl').innerHTML=`<b>${Math.round(plan.km)} km</b>, sürüş tahmini ${dur(plan.sec*1e3)}<br><span class="mt">Trafik katsayısı x${plan.f} (${plan.n?plan.n+' yolculuktan öğrenildi':'başlangıç değeri'})</span>${lg}<br>${nm?'Molasız':n+' mola x '+$('bm').value+' dk'}<br>Toplam ${dur(tot*1e3)}. Şimdi çıkarsanız varış <b>${hd(Date.now()+tot*1e3)}</b>`;
   $('go').disabled=false;
 }
 $('iv').oninput=$('bm').oninput=show;
@@ -133,7 +151,7 @@ $('nm').onchange=()=>{$('iv').disabled=$('bm').disabled=$('nm').checked;show()};
 $('go').onclick=()=>{
   saveR(pts.b);
   const tt=plan.sec+($('nm').checked?0:Math.max(0,Math.ceil(plan.sec/((+$('iv').value||3)*3600))-1)*(+$('bm').value||0)*60);
-  st={pe:Date.now()+tt*1e3,raw:plan.raw,rok:plan.ok,a:pts.a,b:pts.b,km:plan.km,sec:plan.sec,nm:$('nm').checked,iv:$('nm').checked?1e15:+$('iv').value*36e5,bm:$('nm').checked?0:+$('bm').value*6e4,t0:Date.now(),last:Date.now(),ph:'d',sb:0,pp:0,dist:0,mov:0,max:0,brks:[],vis:[],tr:[],cur:null,brk:null,end:0};
+  st={pe:Date.now()+tt*1e3,raw:plan.raw,rok:plan.ok,a:pts.a,b:pts.b,km:plan.km,sec:plan.sec,v:pts.v.map(p=>({lat:p.lat,lon:p.lon,name:p.name})),legs:plan.legs.map(l=>({km:l.km})),vi:0,vr:[],nm:$('nm').checked,iv:$('nm').checked?1e15:+$('iv').value*36e5,bm:$('nm').checked?0:+$('bm').value*6e4,t0:Date.now(),last:Date.now(),ph:'d',sb:0,pp:0,dist:0,mov:0,max:0,brks:[],vis:[],tr:[],cur:null,brk:null,end:0};
   beep();run();
 };
 
@@ -203,8 +221,10 @@ async function loc(){
   }catch{}
 }
 function remMs(){
-  const n=Date.now(),s0=hav(st.a.lat,st.a.lon,st.b.lat,st.b.lon),ratio=Math.max(1,st.km/Math.max(s0,1)),c=pos||st.a,
-  rk=hav(c.lat,c.lon,st.b.lat,st.b.lon)*ratio,pv=st.km/(st.sec/3600),
+  const n=Date.now(),c=pos||st.a,V=st.v||[],vi=Math.min(st.vi||0,V.length),
+  L=st.legs&&st.legs.length==V.length+1?st.legs:[{km:st.km}],P=[st.a,...V,st.b],tg=P[vi+1],pr=P[vi],
+  s0=hav(pr.lat,pr.lon,tg.lat,tg.lon),ratio=Math.max(1,L[vi].km/Math.max(s0,1)),
+  rest=L.slice(vi+1).reduce((x,l)=>x+l.km,0),rk=hav(c.lat,c.lon,tg.lat,tg.lon)*ratio+rest,pv=st.km/(st.sec/3600),
   bs=st.brks.reduce((x,k)=>x+k.d,0)+(st.ph=='b'&&st.brk?n-st.brk.s:0),dm=n-st.t0-bs,
   w=Math.min(.85,Math.max(0,(dm-18e4)/42e4*.85)),av=dm>6e4&&st.dist>0.2?st.dist/(dm/36e5):pv,v=Math.max(3,pv*(1-w)+av*w);
   return{km:rk,drive:rk/v*36e5,av};
@@ -220,7 +240,9 @@ function tick(){
   const et=hd(eta);$('eta').textContent=et;$('eta').style.fontSize=et.length>11?'32px':et.length>5?'42px':'';
   $('el').textContent='Geçen süre: '+dur(n-st.t0);
   if(st.pe){const df=eta-st.pe,ad=Math.abs(df);$('pe').textContent='Planlanan varış: '+hd(st.pe)+(ad<12e4?' (şu an zamanında)':' (şu an '+dur(ad)+(df>0?' geç)':' erken)'))}
-  if(!st.ar&&pos&&hav(pos.lat,pos.lon,st.b.lat,st.b.lon)<0.3){st.ar=n;notify('Varış noktasına ulaştınız')}
+  const WV=st.v||[];
+  if((st.vi||0)<WV.length&&pos&&hav(pos.lat,pos.lon,WV[st.vi].lat,WV[st.vi].lon)<0.3){st.vr=st.vr||[];st.vr[st.vi]=n;notify('Ara durak: '+WV[st.vi].name);st.vi++}
+  if(!st.ar&&(st.vi||0)>=WV.length&&pos&&hav(pos.lat,pos.lon,st.b.lat,st.b.lon)<0.3){st.ar=n;notify('Varış noktasına ulaştınız')}
   $('rem').textContent=`Kalan ${Math.round(r.km)} km, ${dur(eta-n)}`;
   $('sp').textContent=pos?Math.round(pos.sp):0;
   $('av').textContent=st.mov>6e4?Math.round(st.dist/(st.mov/36e5)):0;
@@ -349,7 +371,7 @@ function drawMap(T){
     const dot=(q,r,c,t)=>L.circleMarker(q,{radius:r,color:'#fff',weight:2,fillColor:c,fillOpacity:1}).addTo(m).bindPopup(t);
     (T.vis||[]).filter(v=>v.lat!=null).forEach(v=>dot([v.lat,v.lon],3,'#2a4a62',pl(v)));
     (T.brks||[]).filter(b=>b.lat!=null).forEach(b=>dot([b.lat,b.lon],8,'#f2a900','Mola: '+b.place+'<br>'+dur(b.d)));
-    dot(tr[0],7,'#0a7a52','Başlangıç');dot(tr[tr.length-1],7,'#c0392b','Bitiş');
+    dot(tr[0],7,'#0a7a52','Başlangıç');dot(tr[tr.length-1],7,'#c0392b','Bitiş');(T.v||[]).forEach(w=>dot([w.lat,w.lon],6,'#8e44ad','Ara durak: '+w.name));
   }).catch(()=>svgMap(el,T));
 }
 function gpx(T){
@@ -401,12 +423,12 @@ function summary(T,hist){
   const tot=T.end-T.t0,bt=T.brks.reduce((a,b)=>a+b.d,0),il=[...new Set(T.vis.map(v=>v.il))],
   ic=[...new Map(T.vis.map(v=>[v.ilce+'|'+v.il,v])).values()],
   av=T.mov>6e4?Math.round(T.dist/(T.mov/36e5)):0;
-  const ar=T.ar||T.end,pd=T.pe?ar-T.pe:null,
+  const wv=(T.v||[]).map((w,i)=>w.name+(T.vr&&T.vr[i]?' ('+hm(T.vr[i])+')':'')).join(', '),ar=T.ar||T.end,pd=T.pe?ar-T.pe:null,
   pm=pd==null?'':Math.abs(pd)<12e4?'Planlanan saatte ulaştınız':'Planlanandan '+dur(Math.abs(pd))+(pd>0?' geç':' erken')+' ulaştınız';
   F.innerHTML=`<h1>Yolculuk özeti</h1>
   <div class="card">${T.a.name} → ${T.b.name}<br>Başlangıç ${hs(T.t0)}<br>${T.pe?'Planlanan varış '+hs(T.pe)+'<br>':''}Gerçek varış ${hs(ar)}${pm?'<br><b class="am">'+pm+'</b>':''}</div>
   <div class="st"><div><b>${Math.round(T.dist)}</b><span>km yol</span></div><div><b>${av}</b><span>km/sa ortalama</span></div><div><b>${Math.round(T.max)}</b><span>km/sa en yüksek</span></div></div>
-  <div class="card">Toplam süre ${dur(tot)}<br>Sürüş ${dur(tot-bt)}<br>Mola ${dur(bt)} (${T.brks.length} mola)${T.sec?'<br><span class="mt">Sürüş tahmini '+dur(T.sec*1e3)+', gerçek '+dur(tot-bt)+'</span>':''}</div>
+  <div class="card">Toplam süre ${dur(tot)}<br>Sürüş ${dur(tot-bt)}<br>Mola ${dur(bt)} (${T.brks.length} mola)${wv?'<br>Ara duraklar: '+wv:''}${T.sec?'<br><span class="mt">Sürüş tahmini '+dur(T.sec*1e3)+', gerçek '+dur(tot-bt)+'</span>':''}</div>
   <h2>Güzergah</h2><div id="mp" style="height:340px;border-radius:12px;overflow:hidden;border:1px solid var(--ln)"></div><button id="gx" style="width:100%;margin-top:10px">GPX olarak indir</button>
   <h2>Mola verilen yerler</h2><ul>${T.brks.map(b=>`<li>${b.place}: ${dur(b.d)} (${hm(b.s)})</li>`).join('')||'<li>Mola kaydı yok</li>'}</ul>
   <h2>Geçilen iller (${il.length})</h2><div>${il.join(', ')||'-'}</div>
