@@ -34,7 +34,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--am)}
 .mt{color:var(--mt);font-size:14px}
 #tz{position:fixed;left:14px;right:14px;top:max(10px,env(safe-area-inset-top));background:var(--am);color:#1a1200;border-radius:12px;padding:14px;font-weight:700;display:none;z-index:9}
 li{margin:3px 0}ul{padding-left:20px;margin:4px 0}
-#mp .leaflet-tile-pane,#am .leaflet-tile-pane{filter:saturate(.4) contrast(.92) brightness(1.05)}
+#mp .leaflet-tile-pane,#am .leaflet-tile-pane,#lm .leaflet-tile-pane{filter:saturate(.4) contrast(.92) brightness(1.05)}
 button.arm{background:var(--am);border-color:var(--am);color:#1a1200;font-weight:700}
 </style></head><body>
 <div id="tz"></div>
@@ -65,6 +65,8 @@ button.arm{background:var(--am);border-color:var(--am);color:#1a1200;font-weight
 <div class="card" id="bc"><div id="bt1" class="am"></div><div id="bt2" class="mt"></div></div>
 <div class="card"><div class="mt">Şu an</div><div id="lc" style="font-size:20px;font-weight:700">Konum bekleniyor…</div><div id="np" class="am" style="margin-top:6px;font-weight:600"></div></div>
 <div class="card" id="ad" hidden></div>
+<button id="mt" style="width:100%;margin-top:10px">Haritayı göster</button>
+<div id="mw" hidden><div id="lm" style="height:46vh;min-height:300px;border-radius:12px;overflow:hidden;border:1px solid var(--ln);margin-top:10px"></div><button id="mf" style="width:100%;margin-top:8px;font-size:14px">Beni takip et: açık</button></div>
 <div class="bt"><button id="bk" class="big" style="margin:0">Mola başladı</button></div>
 <div class="bt"><button id="pp">Molayı 15 dk ertele</button><button id="pv" hidden></button></div>
 <div class="bt"><button id="fin">Yolculuğu bitir</button></div>
@@ -123,14 +125,17 @@ $('ax').onclick=()=>{$('xr').hidden=!$('xr').hidden};
 async function mk(){
   const{a,b}=pts;if(!a||!b)return;$('pl').textContent='Rota hesaplanıyor…';
   const P=[a,...pts.v,b];
+  let rt=P.map(p=>[p.lat,p.lon]);
   let legs=P.slice(1).map((p,i)=>{const k=hav(P[i].lat,P[i].lon,p.lat,p.lon)*1.3;return{km:k,raw:k/80*3600}}),ok=false;
   try{
-    const r=await j(`https://router.project-osrm.org/route/v1/driving/${P.map(p=>p.lon+','+p.lat).join(';')}?overview=false`);
+    const r=await j(`https://router.project-osrm.org/route/v1/driving/${P.map(p=>p.lon+','+p.lat).join(';')}?overview=simplified&geometries=geojson`);
     const lg=r.routes[0].legs;if(lg.length!=P.length-1)throw 0;
-    legs=lg.map(l=>({km:l.distance/1000,raw:l.duration}));ok=true;
+    legs=lg.map(l=>({km:l.distance/1000,raw:l.duration}));
+    try{rt=simp(r.routes[0].geometry.coordinates.map(q=>[+q[1].toFixed(5),+q[0].toFixed(5)]),0.03)}catch{}
+    ok=true;
   }catch{}
   const km=legs.reduce((x,l)=>x+l.km,0),raw=legs.reduce((x,l)=>x+l.raw,0),c=corr(km);
-  plan={km,raw,ok,f:c.f,n:c.n,sec:raw*c.f,legs,names:P.map(p=>p.name)};show();
+  plan={km,raw,ok,f:c.f,n:c.n,sec:raw*c.f,legs,rt,names:P.map(p=>p.name)};show();
 }
 /* Trafik katsayısı: kısa (<60 km) ve uzun yolculuklar için ayrı, geçmiş yolculuklardan öğrenilir */
 function corr(km){
@@ -151,12 +156,47 @@ $('nm').onchange=()=>{$('iv').disabled=$('bm').disabled=$('nm').checked;show()};
 $('go').onclick=()=>{
   saveR(pts.b);
   const tt=plan.sec+($('nm').checked?0:Math.max(0,Math.ceil(plan.sec/((+$('iv').value||3)*3600))-1)*(+$('bm').value||0)*60);
-  st={pe:Date.now()+tt*1e3,raw:plan.raw,rok:plan.ok,a:pts.a,b:pts.b,km:plan.km,sec:plan.sec,v:pts.v.map(p=>({lat:p.lat,lon:p.lon,name:p.name})),legs:plan.legs.map(l=>({km:l.km})),vi:0,vr:[],nm:$('nm').checked,iv:$('nm').checked?1e15:+$('iv').value*36e5,bm:$('nm').checked?0:+$('bm').value*6e4,t0:Date.now(),last:Date.now(),ph:'d',sb:0,pp:0,dist:0,mov:0,max:0,brks:[],vis:[],tr:[],cur:null,brk:null,end:0};
+  st={pe:Date.now()+tt*1e3,raw:plan.raw,rok:plan.ok,a:pts.a,b:pts.b,km:plan.km,sec:plan.sec,v:pts.v.map(p=>({lat:p.lat,lon:p.lon,name:p.name})),legs:plan.legs.map(l=>({km:l.km})),rt:plan.rt,vi:0,vr:[],nm:$('nm').checked,iv:$('nm').checked?1e15:+$('iv').value*36e5,bm:$('nm').checked?0:+$('bm').value*6e4,t0:Date.now(),last:Date.now(),ph:'d',sb:0,pp:0,dist:0,mov:0,max:0,brks:[],vis:[],tr:[],cur:null,brk:null,end:0};
   beep();run();
 };
 
 /* ---- Takip ---- */
-function run(){$('s').hidden=$('f').hidden=true;$('r').hidden=false;lock();watch();setInterval(tick,1000)}
+let lm=null,lme=null,ltr=null,mOpen=false,follow=true,lmOff=false,mTick=0;
+function svgLive(){
+  const rt=st.rt&&st.rt.length>1?st.rt:[[st.a.lat,st.a.lon],[st.b.lat,st.b.lon]],p=pos||st.a,tr=st.tr||[],all=rt.concat([[p.lat,p.lon]]),cy=Math.cos(all[0][0]*RD);
+  let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;all.forEach(q=>{const x=q[1]*cy,y=q[0];x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y)});
+  const sc=280/Math.max(x1-x0,y1-y0,1e-6),P=q=>[(q[1]*cy-x0)*sc+10,(y1-q[0])*sc+10],S=l=>l.map(q=>P(q).map(v=>v.toFixed(1)).join(',')).join(' '),m=P([p.lat,p.lon]),e=P([st.b.lat,st.b.lon]);
+  $('lm').innerHTML=`<svg viewBox="0 0 300 300" style="width:100%;height:100%;background:var(--pn)"><polyline points="${S(rt)}" fill="none" stroke="#1a73e8" stroke-width="3" stroke-linejoin="round"/>${tr.length>1?`<polyline points="${S(tr)}" fill="none" stroke="#0a7a52" stroke-width="3.5" stroke-linejoin="round"/>`:''}<circle cx="${e[0]}" cy="${e[1]}" r="6" fill="#c0392b" stroke="#fff"/><circle cx="${m[0]}" cy="${m[1]}" r="7" fill="#f2a900" stroke="#fff" stroke-width="2"/><text x="8" y="294" fill="#8fa8b8" font-size="10">Harita zemini yüklenemedi (internet yok)</text></svg>`;
+}
+function updMap(){
+  if(!mOpen||!st)return;const p=pos||st.a;
+  if(lm&&lme){lme.setLatLng([p.lat,p.lon]);if(ltr&&st.tr)ltr.setLatLngs(st.tr);if(follow)lm.panTo([p.lat,p.lon],{animate:true,duration:.5})}
+  else if(lmOff)svgLive();
+}
+function openMap(){
+  $('mw').hidden=false;$('mt').textContent='Haritayı gizle';mOpen=true;
+  try{localStorage.setItem('ypM','1')}catch{}
+  if(lm){setTimeout(()=>{lm.invalidateSize();updMap()},50);return}
+  if(lmOff){svgLive();return}
+  loadL().then(()=>{
+    const rt=st.rt||[],p=pos||st.a;
+    lm=L.map($('lm')).setView([p.lat,p.lon],14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(lm);
+    if(rt.length>1){L.polyline(rt,{color:'#fff',weight:9,opacity:.95,lineJoin:'round'}).addTo(lm);L.polyline(rt,{color:'#1a73e8',weight:5,lineJoin:'round'}).addTo(lm)}
+    ltr=L.polyline(st.tr||[],{color:'#0a7a52',weight:5,lineJoin:'round'}).addTo(lm);
+    const dot=(q,r2,c)=>L.circleMarker(q,{radius:r2,color:'#fff',weight:2,fillColor:c,fillOpacity:1}).addTo(lm);
+    dot([st.a.lat,st.a.lon],6,'#0a7a52');(st.v||[]).forEach(w=>dot([w.lat,w.lon],6,'#8e44ad'));dot([st.b.lat,st.b.lon],7,'#c0392b');
+    lme=L.circleMarker([p.lat,p.lon],{radius:9,color:'#fff',weight:3,fillColor:'#f2a900',fillOpacity:1}).addTo(lm);
+    lm.on('dragstart',()=>{follow=false;$('mf').textContent='Beni takip et: kapalı'});
+    if(!pos&&rt.length>1)lm.fitBounds(L.latLngBounds(rt),{padding:[20,20]});
+  }).catch(()=>{lmOff=true;svgLive()});
+}
+$('mt').onclick=()=>{
+  if(mOpen){mOpen=false;$('mw').hidden=true;$('mt').textContent='Haritayı göster';try{localStorage.removeItem('ypM')}catch{}}
+  else openMap();
+};
+$('mf').onclick=()=>{follow=!follow;$('mf').textContent='Beni takip et: '+(follow?'açık':'kapalı');if(follow)updMap()};
+function run(){$('s').hidden=$('f').hidden=true;$('r').hidden=false;lock();watch();setInterval(tick,1000);try{if(localStorage.getItem('ypM'))openMap()}catch{}}
 async function lock(){try{if(navigator.wakeLock)await navigator.wakeLock.request('screen')}catch{}}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&st&&!st.end)lock()});
 function watch(){
@@ -264,6 +304,7 @@ function tick(){
   $('bk').textContent=d?(st.nm?'Durak başladı':'Mola başladı'):'Yola devam';
   $('pp').hidden=!d||st.nm;
   nextP();
+  if(++mTick%3==0)updMap();
   if(d&&!st.nm&&n-lastAdv>3e4&&pos){lastAdv=n;advise(r)}
   const A=$('ad');A.hidden=!(d&&adv);if(adv){A.textContent=adv.t}
   $('pv').hidden=!(d&&adv&&adv.p>0);if(adv&&adv.p>0)$('pv').textContent=`Molayı ${adv.p} dk ertele (namaz)`;
@@ -310,7 +351,7 @@ $('fin').onclick=()=>{
   if(!finArm){finArm=setTimeout(()=>{finArm=0;b.textContent='Yolculuğu bitir';b.classList.remove('arm')},5000);b.textContent='Bitirmek için tekrar dokunun';b.classList.add('arm');return}
   clearTimeout(finArm);finArm=0;
   const n=Date.now();if(st.ph=='b'){st.brks.push({s:st.brk.s,d:n-st.brk.s,place:st.brk.place,lat:st.brk.lat,lon:st.brk.lon});st.ph='d'}
-  st.tr=simp(st.tr||[],0.04);st.end=n;try{localStorage.setItem('yp',JSON.stringify(st))}catch{}saveH(st);summary(st);
+  st.tr=simp(st.tr||[],0.04);st.rt=null;st.end=n;try{localStorage.setItem('yp',JSON.stringify(st))}catch{}saveH(st);summary(st);
 };
 function simp(p,e){
   const n=p.length;if(n<3)return p;const keep=new Uint8Array(n);keep[0]=keep[n-1]=1;const sk=[[0,n-1]],cy=Math.cos(p[0][0]*RD);
